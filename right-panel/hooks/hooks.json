@@ -1,0 +1,4 @@
+{
+  "description": "Hooks module do Right Panel",
+  "modules": ["./register.js"]
+}

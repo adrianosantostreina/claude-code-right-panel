@@ -1,0 +1,12 @@
+{
+  "name": "asa-right-panel",
+  "owner": { "name": "Adriano Santos" },
+  "metadata": { "description": "Marketplace local do Right Panel (painel lateral estilo OpenCode)" },
+  "plugins": [
+    {
+      "name": "right-panel",
+      "source": "./right-panel",
+      "description": "Painel lateral estilo OpenCode: contexto, custo, limites, tarefas, arquivos alterados e MCPs"
+    }
+  ]
+}

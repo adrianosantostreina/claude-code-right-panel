@@ -1,0 +1,3 @@
+# O Claude Code grava os tipos do mod aqui cada vez que carrega com --plugin-dir.
+.claude-plugin/types/
+tsconfig.json

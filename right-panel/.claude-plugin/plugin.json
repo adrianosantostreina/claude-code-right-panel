@@ -1,0 +1,6 @@
+{
+  "name": "right-panel",
+  "version": "0.1.0",
+  "description": "Painel lateral estilo OpenCode: contexto, custo, limites, tarefas, arquivos alterados e MCPs da sessão",
+  "author": { "name": "Adriano Santos" }
+}
