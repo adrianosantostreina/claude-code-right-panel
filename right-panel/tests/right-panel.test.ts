@@ -115,6 +115,47 @@ test('/painel fecha o painel aberto e grava a preferência', async ($, on) => {
   expect(saved.get('autoOpen')).toBe(false)
 })
 
+const EXPLORER_PANE = { ...PANE, requestId: 'explorer', props: { ...PANE.props, title: 'Explorer' } } as const
+
+function stubFs(on) {
+  const tree: Record<string, { name: string; kind: string }[]> = {
+    '': [
+      { name: 'README.md', kind: 'file' },
+      { name: 'src', kind: 'dir' },
+      { name: '.git', kind: 'dir' },
+    ],
+    src: [{ name: 'app.ts', kind: 'file' }],
+  }
+  // Sem caminho, o engine passa o diretório de trabalho absoluto.
+  on('fs.list', ($, e) => {
+    const path = String(e.path).replace(/\\/g, '/')
+    const dir = path === 'src' || path.endsWith('/src') ? 'src' : ''
+    return { value: tree[dir].map((x) => ({ ...x, size: 0, mtimeMs: 0, isLink: false })) }
+  })
+}
+
+for (const surface of ['terminal', 'desktop'] as const) {
+  test('/explorer abre a árvore e expande pasta no clique (' + surface + ')', async ($, on) => {
+    const opens: { id?: string }[] = []
+    stubSession(on, opens as unknown[])
+    stubFs(on)
+    on('ui.panes', () => ({ value: [] }))
+    await start($)
+
+    await $.command.run({ command: 'explorer', args: '' })
+    expect(opens.some((o) => o.id === 'explorer')).toBe(true)
+
+    const ui = await $.ui.mount({ ...EXPLORER_PANE, surface })
+    expect(await ui.find({ key: 'dir:src' })).toBeDefined()
+    expect(await ui.find({ key: 'file:README.md' })).toBeDefined()
+    expect(await ui.find({ key: 'dir:.git' })).toBeUndefined()
+    expect(await ui.find({ key: 'file:src/app.ts' })).toBeUndefined()
+
+    await ui.press({ key: 'dir:src' })
+    expect(await ui.find({ key: 'file:src/app.ts' })).toBeDefined()
+  })
+}
+
 test('desenha também no app Desktop', async ($, on) => {
   stubSession(on, [])
   await start($)

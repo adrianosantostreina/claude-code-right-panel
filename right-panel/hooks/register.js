@@ -16,6 +16,9 @@ const PANE = 'right-panel'
 const EDIT_TOOLS = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit']
 const MAX_FILES = 12
 const MAX_TODOS = 15
+const EXPLORER = 'explorer'
+const EXPLORER_HIDDEN = ['.git']
+const MAX_TREE_ROWS = 500
 
 // Estado do painel. Zera quando o módulo recarrega; reconstruído pelo transcript.
 let info = { project: '', branch: '', model: '' }
@@ -24,6 +27,10 @@ let todos = [] // { id, text, status }
 let files = new Map() // caminho -> número de edições
 let mcp = new Map() // servidor -> número de chamadas
 let turns = 0
+
+// Explorador: pastas abertas ('' é a raiz) e o conteúdo já lido de cada uma.
+let expanded = new Set([''])
+let dirEntries = new Map() // pasta relativa -> [{ name, kind }] ou { error }
 
 export function register(on) {
   on('session.start', async ($, e, next) => {
@@ -42,6 +49,13 @@ export function register(on) {
     } catch {
       // Nome já em uso: o painel continua abrindo sozinho.
     }
+    try {
+      await $.command.register({
+        name: 'explorer',
+        description: 'Abre ou fecha o explorador de arquivos do diretório (Right Panel)',
+        immediate: true,
+      })
+    } catch {}
     return result
   })
 
@@ -60,10 +74,17 @@ export function register(on) {
     return {}
   })
 
+  on('command.run', { command: 'explorer' }, async ($) => {
+    await toggleExplorer($)
+    return {}
+  })
+
   on('tool.call', async ($, e, next) => {
     const result = await next(e)
     const ok = !result.deny && !result.isError
     if (ok && trackToolUse(e.tool, e, result)) $.ui.invalidate('ui.render')
+    // Arquivos podem ter sido criados ou apagados: relê as pastas abertas do explorador.
+    if (ok && dirEntries.size && (EDIT_TOOLS.includes(e.tool) || e.tool === 'Bash')) await refreshExplorer($)
     return result
   })
 
@@ -90,6 +111,10 @@ export function register(on) {
   })
 
   on('ui.render', { component: 'Pane' }, async ($, e, next) => {
+    if (e.requestId === EXPLORER) {
+      const { Box, Text, Button } = $.ui.resolve(e)
+      return drawExplorer($, Box, Text, Button)
+    }
     if (e.requestId !== PANE) return next(e)
     const { Box, Text } = $.ui.resolve(e)
     const columns = (e.props && e.props.bodyColumns) || 40
@@ -306,6 +331,132 @@ function drawPanel(Box, Text, columns) {
   line('/painel abre e fecha', { dimColor: true })
 
   return Box({ flexDirection: 'column', paddingX: 1, children: rows })
+}
+
+// ---------------------------------------------------------------- explorador
+
+async function toggleExplorer($) {
+  const isOpen = (await $.ui.panes()).some((pane) => pane.id === EXPLORER && pane.isPlaced !== false)
+  if (isOpen) {
+    await $.ui.close({ id: EXPLORER })
+    return
+  }
+  try {
+    info.project = info.project || baseName(await $.session.cwd())
+  } catch {}
+  await refreshExplorer($)
+  await $.ui.open({ id: EXPLORER, title: 'Explorer' })
+}
+
+// Lê uma pasta (relativa ao diretório de trabalho): pastas primeiro, depois arquivos, por nome.
+async function loadDir($, dir) {
+  try {
+    const list = dir ? await $.fs.list(dir) : await $.fs.list()
+    const entries = list
+      .filter((entry) => !EXPLORER_HIDDEN.includes(entry.name))
+      .map((entry) => ({ name: entry.name, kind: entry.kind === 'dir' ? 'dir' : 'file' }))
+      .sort((a, b) => (a.kind === b.kind ? a.name.localeCompare(b.name) : a.kind === 'dir' ? -1 : 1))
+    dirEntries.set(dir, entries)
+  } catch (err) {
+    dirEntries.set(dir, { error: String((err && err.message) || err) })
+  }
+}
+
+// Relê todas as pastas abertas.
+async function refreshExplorer($) {
+  dirEntries = new Map()
+  for (const dir of expanded) await loadDir($, dir)
+  $.ui.invalidate('ui.render')
+}
+
+async function toggleDir($, dir) {
+  if (expanded.has(dir)) {
+    expanded.delete(dir)
+  } else {
+    expanded.add(dir)
+    if (!dirEntries.has(dir)) await loadDir($, dir)
+  }
+  $.ui.invalidate('ui.render')
+}
+
+async function collapseAll($) {
+  expanded = new Set([''])
+  $.ui.invalidate('ui.render')
+}
+
+async function copyPath($, path, surface) {
+  const copied = await $.ui.copy({ text: path, surface })
+  if (copied && copied.isCopied) $.ui.toast('Copiado: ' + path)
+}
+
+// Monta as linhas da árvore, descendo só nas pastas abertas.
+function treeRows(dir, depth, rows) {
+  const entries = dirEntries.get(dir)
+  if (!entries) return
+  if (!Array.isArray(entries)) {
+    rows.push({ kind: 'error', depth, name: entries.error })
+    return
+  }
+  for (const entry of entries) {
+    if (rows.length >= MAX_TREE_ROWS) return
+    const path = dir ? dir + '/' + entry.name : entry.name
+    const isOpen = entry.kind === 'dir' && expanded.has(path)
+    rows.push({ kind: entry.kind, depth, name: entry.name, path, isOpen })
+    if (isOpen) treeRows(path, depth + 1, rows)
+  }
+}
+
+function drawExplorer($, Box, Text, Button) {
+  const rows = []
+  treeRows('', 0, rows)
+  const items = []
+
+  items.push(
+    Box({
+      flexDirection: 'row',
+      children: [
+        Text({ bold: true, wrap: 'truncate-end', children: info.project || '.' }),
+        Text({ children: '  ' }),
+        Button({ key: 'explorer:refresh', label: '↻', plain: true, hotkey: 'r', onPress: () => refreshExplorer($) }),
+        Text({ children: ' ' }),
+        Button({ key: 'explorer:collapse', label: '⊟', plain: true, hotkey: 'c', onPress: () => collapseAll($) }),
+      ],
+    }),
+  )
+
+  if (!rows.length) items.push(Text({ dimColor: true, children: 'pasta vazia' }))
+
+  for (const row of rows) {
+    const indent = '  '.repeat(row.depth)
+    if (row.kind === 'error') {
+      items.push(Text({ color: 'red', wrap: 'truncate-end', children: indent + row.name }))
+    } else if (row.kind === 'dir') {
+      items.push(
+        Button({
+          key: 'dir:' + row.path,
+          label: indent + (row.isOpen ? '▾ ' : '▸ ') + row.name,
+          plain: true,
+          onPress: () => toggleDir($, row.path),
+        }),
+      )
+    } else {
+      items.push(
+        Button({
+          key: 'file:' + row.path,
+          label: indent + '  ' + row.name,
+          plain: true,
+          dimColor: true,
+          onPress: (press) => copyPath($, row.path, press.surface),
+        }),
+      )
+    }
+  }
+
+  if (rows.length >= MAX_TREE_ROWS) items.push(Text({ dimColor: true, children: '… lista cortada em ' + MAX_TREE_ROWS }))
+  items.push(Text({ children: ' ' }))
+  items.push(Text({ dimColor: true, wrap: 'truncate-end', children: 'clique: abre pasta / copia caminho · r atualiza · c recolhe' }))
+
+  return Box({ flexDirection: 'column', paddingX: 1, children: items })
 }
 
 // ---------------------------------------------------------------- utilitários

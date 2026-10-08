@@ -17,6 +17,15 @@ A primeira versão do mod está pronta, validada (`claude plugin validate`) e co
 5. Ajustar o visual pelo que aparecer. Com `--plugin-dir`, o mod recarrega sozinho ao salvar.
 6. (Já instalado no escopo user; ver seção "Git e instalação".)
 
+## Explorer (v0.2.0, 2026-10-08)
+
+- Segundo painel, id `explorer`, aberto/fechado por `/explorer` (não abre sozinho).
+- Lê pastas com `$.fs.list` só quando são abertas; relê as pastas abertas depois de Edit/Write/MultiEdit/NotebookEdit/Bash.
+- Pastas e arquivos são `Button plain`; clicar num arquivo copia o caminho relativo (`$.ui.copy`) e mostra um toast. Hotkeys `r` (atualizar) e `c` (recolher).
+- Limite de 500 linhas na árvore. Oculta só `.git`.
+- **A validar ao vivo**: se a indentação por espaços no `label` do Button aparece certa e se o clique em pasta funciona no terminal.
+- Detalhe do teste: sem argumento, `$.fs.list()` chega ao hook como o caminho absoluto do diretório de trabalho.
+
 ## Decisões
 
 - **Mod em vez de statusline/hooks externos**: só mod desenha painel (pane) dentro do Claude Code.
@@ -50,5 +59,5 @@ claude --plugin-dir "./right-panel"
 ## Git e instalação
 
 - Branch `main`, sincronizada com `origin` (repo privado: https://github.com/adrianosantostreina/claude-code-right-panel).
-- Plugin **instalado no escopo user** (2026-10-08): marketplace local `asa-right-panel` apontando para esta pasta, `right-panel@asa-right-panel` v0.1.0 habilitado. Vale para todos os projetos.
+- Plugin **instalado no escopo user** (2026-10-08): marketplace local `asa-right-panel` apontando para esta pasta, `right-panel@asa-right-panel` habilitado (v0.2.0 com o Explorer). Vale para todos os projetos.
 - Para testar mudanças com `--plugin-dir`, desabilite antes a cópia instalada (`claude plugin disable right-panel@asa-right-panel`) para não carregar duas vezes. Ao terminar: suba o `version` e rode `claude plugin update right-panel@asa-right-panel`.

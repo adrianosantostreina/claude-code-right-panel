@@ -11,6 +11,8 @@ Ele mostra, à direita da conversa:
 - arquivos que o Claude alterou na sessão
 - servidores MCP usados na sessão
 
+E um segundo painel, o **Explorer** (`/explorer`), com a árvore de arquivos do diretório.
+
 Em terminal estreito, o painel fica acima do prompt. Quando abre sozinho, só aparece com 144 colunas ou mais; pelo `/painel` aparece em qualquer largura.
 
 ## Requisitos
@@ -49,4 +51,5 @@ Depois de mudar o código, suba o `version` em `plugin.json` e rode `claude plug
 ## Uso
 
 - `/painel` abre e fecha o painel. A escolha fica salva para as próximas sessões.
+- `/explorer` abre e fecha o explorador de arquivos. Clique numa pasta para abrir ou fechar; clique num arquivo para copiar o caminho. Com o painel em foco, `r` atualiza e `c` recolhe tudo. A pasta `.git` fica oculta, e a árvore se atualiza sozinha depois de Edit, Write e Bash.
 - `Ctrl+X` e depois `Tab` dá o foco ao painel. `Ctrl+X` + setas redimensiona.
