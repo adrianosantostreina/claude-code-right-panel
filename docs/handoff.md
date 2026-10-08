@@ -15,7 +15,7 @@ A primeira versão do mod está pronta, validada (`claude plugin validate`) e co
 3. Ver se o painel abriu sozinho à direita. Se não, rodar `/painel`.
 4. Fazer o Claude editar um arquivo e criar tarefas, e ver se o painel atualiza.
 5. Ajustar o visual pelo que aparecer. Com `--plugin-dir`, o mod recarrega sozinho ao salvar.
-6. Quando estiver bom, instalar no escopo user (comandos no README).
+6. (Já instalado no escopo user; ver seção "Git e instalação".)
 
 ## Decisões
 
@@ -47,6 +47,8 @@ cd right-panel && claude plugin test
 claude --plugin-dir "./right-panel"
 ```
 
-## Git
+## Git e instalação
 
-Branch `main`, só local (sem remoto ainda). Para criar o repo no GitHub: `/asa:create-github`.
+- Branch `main`, sincronizada com `origin` (repo privado: https://github.com/adrianosantostreina/claude-code-right-panel).
+- Plugin **instalado no escopo user** (2026-10-08): marketplace local `asa-right-panel` apontando para esta pasta, `right-panel@asa-right-panel` v0.1.0 habilitado. Vale para todos os projetos.
+- Para testar mudanças com `--plugin-dir`, desabilite antes a cópia instalada (`claude plugin disable right-panel@asa-right-panel`) para não carregar duas vezes. Ao terminar: suba o `version` e rode `claude plugin update right-panel@asa-right-panel`.
