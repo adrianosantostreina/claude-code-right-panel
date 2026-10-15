@@ -4,7 +4,7 @@
 
 A **v0.3.0** do painel está escrita mas **não commitada** (`plugin.json`, `hooks/register.js`, `tests/right-panel.test.ts`, ~600 linhas a mais). Valida (`claude plugin validate`) e passa nos 12 testes (`claude plugin test`).
 O trabalho da v0.3.0 foi feito numa sessão anterior que não atualizou este handoff; o que está abaixo sobre ela foi lido do código, não de uma conversa.
-O pedido desta sessão ("Atualize o handoff do projeto com o estado desta sessão.") tem o mesmo texto do atalho `handoff` do painel, o que indica que o botão de atalho funcionou ao vivo.
+O usuário já viu a v0.3.0 ao vivo e aprovou o visual, exceto a seção "Próximo passo", que foi removida nesta sessão (ver abaixo). Depois da remoção: validate ok, 12 testes passando.
 
 ## Próximo passo concreto
 
@@ -16,18 +16,18 @@ O pedido desta sessão ("Atualize o handoff do projeto com o estado desta sessã
 
 ## v0.3.0 (não commitada)
 
-Seções novas no painel, nesta ordem: Sessão (duração, prompts, custo) · Contexto + composição (`session.usage({ breakdown: 'summary' })`) · Limites com tempo até renovar (`↻ 2h10`) · **Próximo passo** (lido deste arquivo) · Tarefas · Subagentes (`$.agent.list`) · Arquivos alterados · Git (↑/↓, último commit, +/− por arquivo, não rastreados) · MCP (conectados + contagem de uso) · Atalhos.
+Seções novas no painel, nesta ordem: Sessão (duração, prompts, custo) · Contexto + composição (`session.usage({ breakdown: 'summary' })`) · Limites com tempo até renovar (`↻ 2h10`) · Tarefas · Subagentes (`$.agent.list`) · Arquivos alterados · Git (↑/↓, último commit, +/− por arquivo, não rastreados) · MCP (conectados + contagem de uso) · Atalhos.
 
 - **Tema**: `dracula` (padrão, fundo `#282a36` com `minHeight = bodyRows`) ou `auto` (cores do tema do Claude Code). Troca com `/painel tema dracula|auto`, gravado em `$.store` (`theme`). O Explorer usa a mesma paleta.
 - **Atalhos**: botões `commit`, `handoff`, `testes`, `revisar` preenchem o prompt com `$.prompt.fill` (mode `replace`, **sem enviar**); botões `/compact` e `/clear` rodam o comando com `$.command.run`.
 - **Ticker** de 15 s (`$.clock.every`) atualiza duração, reset dos limites e subagentes.
-- **Próximo passo**: procura `docs/handoff.md`, `docs/superpowers/handoff.md`, `HANDOFF.md`; pega a primeira seção cujo título casa com "próximo passo", ignora blocos de código e tira `**`/`` ` ``; mostra até 6 linhas. **Por isso esta seção acima é curta e sem bloco de código** — é o que aparece no painel.
+- **Seção "Próximo passo" removida (2026-10-14, pedido do usuário)**: a v0.3.0 tinha uma seção que lia a seção "Próximo passo" do handoff e mostrava no painel. O usuário viu ao vivo e achou que poluía demais. Foi retirada do código e dos testes (`refreshHandoff`/`nextStepLines`, `$.fs.exists`/`$.fs.read`). **Não reintroduzir** sem o usuário pedir. O botão de atalho `handoff` continua.
 - **MCP**: servidores conectados vêm de `breakdown.mcpTools` + `$.tool.list()` (supera a limitação antiga de "só os usados"); a chave `serverKey` normaliza "claude.ai Gmail" e `claude_ai_Gmail` para a mesma coisa.
 - Teste: `fs.exists` pode receber o caminho já absoluto (o teste do handoff aceita os dois).
 
 ## A validar ao vivo
 
-- v0.3.0: fundo Dracula preenchendo o painel inteiro (`minHeight`), `flexWrap`/`columnGap` nas linhas de botões, `variant: 'secondary'`, se `$.command.run` de `clear`/`compact` funciona a partir de um botão, e se `$.agent.list` traz subagentes reais.
+- v0.3.0 (o usuário já viu o painel e gostou; falta confirmar os detalhes): fundo Dracula preenchendo o painel inteiro (`minHeight`), `flexWrap`/`columnGap` nas linhas de botões, `variant: 'secondary'`, se `$.command.run` de `clear`/`compact` funciona a partir de um botão, e se `$.agent.list` traz subagentes reais.
 - `claude plugin validate` passa mas avisa **"gating hook without .catch"** em `tool.call` e `ui.close{id=right-panel}`. Avaliar se vale tratar.
 - Ainda da v0.2.0: indentação por espaços no `label` do Button do Explorer e clique em pasta no terminal.
 - Ainda da v0.1.0: formato real de `TaskCreate`/`TaskUpdate` (id lido do texto `#N`); `paddingX` e `wrap: 'truncate-end'` aceitos (se não, aparece `ui.render (Pane) refused: ...` no transcript).
@@ -53,7 +53,6 @@ Seções novas no painel, nesta ordem: Sessão (duração, prompts, custo) · Co
 - Não instalar e desenvolver ao mesmo tempo: a cópia instalada fica em cache por versão. Desenvolver sempre com `--plugin-dir`, com a cópia instalada desabilitada.
 - Nome do plugin não pode começar com `claude-`.
 - `focus`, `closeOnEscape` em `$.ui.open` aceitam só `true`; passar `false` dá erro.
-- Ao mexer na seção "Próximo passo" deste arquivo, lembrar que o painel mostra só as 6 primeiras linhas, sem código.
 
 ## Como rodar e validar
 
