@@ -50,6 +50,7 @@ Seções novas no painel, nesta ordem: Sessão (duração, prompts, custo) · Co
 
 ## Armadilhas
 
+- Nos testes (`claude-code/testing`), registrar `on(evento)` duas vezes derruba o módulo ("registered twice"): para trocar um stub padrão, passe-o em `overrides` do `stubSession`.
 - Não instalar e desenvolver ao mesmo tempo: a cópia instalada fica em cache por versão. Desenvolver sempre com `--plugin-dir`, com a cópia instalada desabilitada.
 - Nome do plugin não pode começar com `claude-`.
 - `focus`, `closeOnEscape` em `$.ui.open` aceitam só `true`; passar `false` dá erro.

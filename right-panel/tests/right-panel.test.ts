@@ -17,19 +17,33 @@ const PANE = {
 } as const
 
 // Stubs de tudo que o session.start do mod chama
-function stubSession(on, opens: unknown[], saved = new Map<string, unknown>()) {
+function stubSession(on, opens: unknown[], saved = new Map<string, unknown>(), overrides: Record<string, unknown> = {}) {
+  const stub = (event: string, fn: unknown) => on(event, overrides[event] || fn)
   on('session.start', () => ({ cwd: '/work/meu-projeto' }))
   on('session.messages', () => ({ value: [] }))
   on('session.cwd', () => ({ value: '/work/meu-projeto' }))
   on('session.model', () => ({ value: 'Opus 5.5' }))
-  on('session.usage', () => ({
+  stub('session.usage', () => ({
     value: {
       context: { tokens: 50_000, window: 200_000, percent: 25 },
       rateLimits: [{ kind: 'five_hour', percentUsed: 40 }],
       cost: { usd: 1.234 },
     },
   }))
-  on('process.run', () => ({ value: { exitCode: 0, stdout: 'main\n', stderr: '' } }))
+  on('process.run', ($, e) => {
+    const args = e.argv.slice(1).join(' ')
+    const out = (stdout: string) => ({ value: { exitCode: 0, stdout, stderr: '' } })
+    if (args === 'branch --show-current') return out('main\n')
+    if (args.startsWith('log -1')) return out('cf8940f feat: explorer\n')
+    if (args.startsWith('rev-list')) return out('2\t0\n')
+    if (args.startsWith('diff --numstat')) return out('12\t3\tright-panel/hooks/register.js\n')
+    if (args.startsWith('status --porcelain')) return out(' M right-panel/hooks/register.js\n?? novo.txt\n')
+    return { value: { exitCode: 1, stdout: '', stderr: '' } }
+  })
+  on('clock.now', () => ({ value: Date.parse('2026-10-14T12:00:00Z') }))
+  on('clock.every', () => ({ value: undefined }))
+  stub('agent.list', () => ({ value: [] }))
+  on('tool.list', () => ({ value: [] }))
   on('store.get', ($, e) => ({ value: saved.get(e.key) }))
   on('store.set', ($, e) => {
     saved.set(e.key, e.value)
@@ -155,6 +169,99 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(await ui.find({ key: 'file:src/app.ts' })).toBeDefined()
   })
 }
+
+test('mostra sessão, composição do contexto, reset dos limites e git', async ($, on) => {
+  stubSession(on, [], undefined, {
+    'session.usage': ($, e) => ({
+    value: {
+      startedAt: Date.parse('2026-10-14T10:55:00Z'),
+      context: {
+        tokens: 50_000,
+        window: 200_000,
+        percent: 25,
+        ...(e.breakdown
+          ? {
+              breakdown: {
+                rawMaxTokens: 200_000,
+                categories: [
+                  { name: 'Messages', tokens: 30_000, kind: 'used' },
+                  { name: 'System prompt', tokens: 8_000, kind: 'used' },
+                  { name: 'Free space', tokens: 150_000, kind: 'free' },
+                ],
+                mcpTools: [{ name: 'mcp__claude_ai_Gmail__search', serverName: 'claude.ai Gmail', tokens: 100, isLoaded: false }],
+              },
+            }
+          : {}),
+      },
+      rateLimits: [{ kind: 'five_hour', percentUsed: 40, resetsAt: '2026-10-14T14:10:00Z' }],
+      cost: { usd: 1.234 },
+    },
+  }),
+  })
+  await start($)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /⏱ 1h 05min/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^Mensagens\s+30\.0k\s+15%$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^Free space/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /^5h .*↻ 2h10$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '↑2 ↓0' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: 'cf8940f feat: explorer' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^\+12 −3\s+register\.js$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '? 1 não rastreado' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '○ Gmail' })).toBeDefined()
+})
+
+test('mostra subagentes, os ativos primeiro', async ($, on) => {
+  stubSession(on, [], undefined, {
+    'agent.list': () => ({
+      value: [
+        { id: 'a1', description: 'Mapear API', type: 'Explore', status: 'completed' },
+        { id: 'a2', description: 'Rodar testes', type: 'general-purpose', status: 'running' },
+      ],
+    }),
+  })
+  await start($)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: 'Subagentes  1 ativo' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '▶ Rodar testes  · general-purpose' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '✓ Mapear API  · Explore' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: 'Próximo passo' })).toBeUndefined()
+})
+
+test('atalho preenche o prompt e comando rápido roda o /compact', async ($, on) => {
+  stubSession(on, [])
+  const fills: string[] = []
+  const runs: string[] = []
+  on('prompt.fill', ($, e) => {
+    fills.push(e.text)
+    return { isFilled: true, text: e.text, cursor: e.text.length }
+  })
+  on('command.run', { command: 'compact' }, ($, e) => {
+    runs.push(e.command)
+    return {}
+  })
+  await start($)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  await ui.press({ key: 'prompt:commit' })
+  expect(fills[0]).toMatch(/commit/)
+  await ui.press({ key: 'cmd:compact' })
+  expect(runs).toEqual(['compact'])
+})
+
+test('/painel tema troca e grava o tema', async ($, on) => {
+  const saved = new Map<string, unknown>()
+  stubSession(on, [], saved)
+  await start($)
+
+  const r = await $.command.run({ command: 'painel', args: 'tema auto' })
+  expect(saved.get('theme')).toBe('auto')
+  expect(r.text).toBe('Tema do painel: auto')
+  const bad = await $.command.run({ command: 'painel', args: 'tema xpto' })
+  expect(bad.text).toMatch(/^Temas: dracula, auto/)
+})
 
 test('desenha também no app Desktop', async ($, on) => {
   stubSession(on, [])
