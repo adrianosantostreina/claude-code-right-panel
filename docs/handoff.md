@@ -11,7 +11,6 @@ Duas sessões trabalharam em paralelo neste repo em 2026-10-14. A mensagem do co
 1. Reiniciar o Claude Code para carregar a 0.3.1 instalada.
 2. Conferir as seções novas (lista em "v0.3.0" abaixo) e o fundo Dracula.
 3. Testar os botões de atalho, `/compact`, `/clear` e `/painel tema auto`.
-4. Fazer o push quando o usuário pedir (`main` está à frente de `origin`).
 
 ## v0.3.0 / v0.3.1
 
@@ -67,5 +66,5 @@ Ao terminar: `claude plugin update right-panel@asa-right-panel` e `claude plugin
 
 ## Git e instalação
 
-- Branch `main`, **à frente de `origin/main`, sem push** (commits de 2026-10-14). Repo privado: https://github.com/adrianosantostreina/claude-code-right-panel.
+- Branch `main`, em dia com `origin/main` (push feito em 2026-10-14). Repo privado: https://github.com/adrianosantostreina/claude-code-right-panel.
 - Plugin **instalado no escopo user**: marketplace local `asa-right-panel` apontando para esta pasta, `right-panel@asa-right-panel` habilitado, versão **0.3.1**.
