@@ -1,63 +1,73 @@
 # Handoff — Right Panel
 
-## Onde paramos (2026-10-07)
+## Onde paramos (2026-10-14)
 
-A primeira versão do mod está pronta, validada (`claude plugin validate`) e com 6 testes passando (`claude plugin test`).
-**Ainda não foi vista rodando numa sessão real**: é o próximo passo.
+A **v0.3.0** do painel está escrita mas **não commitada** (`plugin.json`, `hooks/register.js`, `tests/right-panel.test.ts`, ~600 linhas a mais). Valida (`claude plugin validate`) e passa nos 12 testes (`claude plugin test`).
+O trabalho da v0.3.0 foi feito numa sessão anterior que não atualizou este handoff; o que está abaixo sobre ela foi lido do código, não de uma conversa.
+O pedido desta sessão ("Atualize o handoff do projeto com o estado desta sessão.") tem o mesmo texto do atalho `handoff` do painel, o que indica que o botão de atalho funcionou ao vivo.
 
 ## Próximo passo concreto
 
-1. Abrir o Claude Code nesta pasta **com o mod carregado**, num terminal largo (144+ colunas) e em tela cheia:
-   ```bash
-   claude --plugin-dir "./right-panel"
-   ```
-2. Conferir com `/plugin` a linha `1 mod active · right-panel`.
-3. Ver se o painel abriu sozinho à direita. Se não, rodar `/painel`.
-4. Fazer o Claude editar um arquivo e criar tarefas, e ver se o painel atualiza.
-5. Ajustar o visual pelo que aparecer. Com `--plugin-dir`, o mod recarrega sozinho ao salvar.
-6. (Já instalado no escopo user; ver seção "Git e instalação".)
+1. Ver a v0.3.0 rodando: desabilitar a cópia instalada e abrir com `claude --plugin-dir "./right-panel"` em terminal largo.
+2. Conferir as seções novas (lista em "v0.3.0" abaixo) e o fundo Dracula.
+3. Testar os botões de atalho e `/compact`/`/clear`, e `/painel tema auto`.
+4. Commitar a v0.3.0 (os 3 arquivos) e fazer push.
+5. `claude plugin update right-panel@asa-right-panel` e reabilitar a cópia instalada.
 
-## Explorer (v0.2.0, 2026-10-08)
+## v0.3.0 (não commitada)
+
+Seções novas no painel, nesta ordem: Sessão (duração, prompts, custo) · Contexto + composição (`session.usage({ breakdown: 'summary' })`) · Limites com tempo até renovar (`↻ 2h10`) · **Próximo passo** (lido deste arquivo) · Tarefas · Subagentes (`$.agent.list`) · Arquivos alterados · Git (↑/↓, último commit, +/− por arquivo, não rastreados) · MCP (conectados + contagem de uso) · Atalhos.
+
+- **Tema**: `dracula` (padrão, fundo `#282a36` com `minHeight = bodyRows`) ou `auto` (cores do tema do Claude Code). Troca com `/painel tema dracula|auto`, gravado em `$.store` (`theme`). O Explorer usa a mesma paleta.
+- **Atalhos**: botões `commit`, `handoff`, `testes`, `revisar` preenchem o prompt com `$.prompt.fill` (mode `replace`, **sem enviar**); botões `/compact` e `/clear` rodam o comando com `$.command.run`.
+- **Ticker** de 15 s (`$.clock.every`) atualiza duração, reset dos limites e subagentes.
+- **Próximo passo**: procura `docs/handoff.md`, `docs/superpowers/handoff.md`, `HANDOFF.md`; pega a primeira seção cujo título casa com "próximo passo", ignora blocos de código e tira `**`/`` ` ``; mostra até 6 linhas. **Por isso esta seção acima é curta e sem bloco de código** — é o que aparece no painel.
+- **MCP**: servidores conectados vêm de `breakdown.mcpTools` + `$.tool.list()` (supera a limitação antiga de "só os usados"); a chave `serverKey` normaliza "claude.ai Gmail" e `claude_ai_Gmail` para a mesma coisa.
+- Teste: `fs.exists` pode receber o caminho já absoluto (o teste do handoff aceita os dois).
+
+## A validar ao vivo
+
+- v0.3.0: fundo Dracula preenchendo o painel inteiro (`minHeight`), `flexWrap`/`columnGap` nas linhas de botões, `variant: 'secondary'`, se `$.command.run` de `clear`/`compact` funciona a partir de um botão, e se `$.agent.list` traz subagentes reais.
+- `claude plugin validate` passa mas avisa **"gating hook without .catch"** em `tool.call` e `ui.close{id=right-panel}`. Avaliar se vale tratar.
+- Ainda da v0.2.0: indentação por espaços no `label` do Button do Explorer e clique em pasta no terminal.
+- Ainda da v0.1.0: formato real de `TaskCreate`/`TaskUpdate` (id lido do texto `#N`); `paddingX` e `wrap: 'truncate-end'` aceitos (se não, aparece `ui.render (Pane) refused: ...` no transcript).
+
+## Explorer (v0.2.0)
 
 - Segundo painel, id `explorer`, aberto/fechado por `/explorer` (não abre sozinho).
 - Lê pastas com `$.fs.list` só quando são abertas; relê as pastas abertas depois de Edit/Write/MultiEdit/NotebookEdit/Bash.
-- Pastas e arquivos são `Button plain`; clicar num arquivo copia o caminho relativo (`$.ui.copy`) e mostra um toast. Hotkeys `r` (atualizar) e `c` (recolher).
-- Limite de 500 linhas na árvore. Oculta só `.git`.
-- **A validar ao vivo**: se a indentação por espaços no `label` do Button aparece certa e se o clique em pasta funciona no terminal.
-- Detalhe do teste: sem argumento, `$.fs.list()` chega ao hook como o caminho absoluto do diretório de trabalho.
+- Clicar num arquivo copia o caminho relativo (`$.ui.copy`). Hotkeys `r` (atualizar) e `c` (recolher). Limite de 500 linhas; oculta só `.git`.
+- Sem argumento, `$.fs.list()` chega ao hook como o caminho absoluto do diretório de trabalho.
 
 ## Decisões
 
 - **Mod em vez de statusline/hooks externos**: só mod desenha painel (pane) dentro do Claude Code.
 - **Abre sozinho no session.start**; se o usuário fecha (✕ ou `/painel`), grava `autoOpen=false` no `$.store` e não abre mais sozinho.
-- **Estado reconstruído pelo transcript** (`$.session.messages()`) no início e depois de `/clear`, `/resume`, `/branch`, para não zerar ao recarregar o mod.
-- **Arquivos alterados** vêm das ferramentas Edit/Write/MultiEdit/NotebookEdit (não do git), para funcionar fora de repositório.
-- **MCP**: não há API que liste os servidores conectados, então o painel mostra os **MCPs usados** na sessão (pelo prefixo `mcp__`).
+- **Estado reconstruído pelo transcript** (`$.session.messages()`) no início e depois de `/clear`, `/resume`, `/branch`.
+- **Arquivos alterados** vêm das ferramentas Edit/Write/MultiEdit/NotebookEdit (não do git), para funcionar fora de repositório. A seção Git é separada e só aparece dentro de repositório.
+- **Atalhos não enviam o prompt**, só preenchem — o usuário revisa e envia.
 - Marketplace local `asa-right-panel` na raiz do repo, para instalar com escopo user.
-
-## Pendências / a validar na sessão real
-
-- Formato real de `TaskCreate`/`TaskUpdate` (o id da tarefa é lido do texto do resultado, `#N`). Se as tarefas não aparecerem, olhar os tipos em `.claude-plugin/types/claude-code-tools/index.d.ts`.
-- Se `$.ui.open` no `session.start` funciona como esperado (abre sozinho só com 144+ colunas).
-- Se `paddingX` e `wrap: 'truncate-end'` são aceitos. Se o desenho for recusado, aparece a linha `ui.render (Pane) refused: ...` no transcript.
-- Ideias para depois: mostrar +/- linhas por arquivo (git diff --numstat), subagentes ativos, duração da sessão, botões para abrir arquivo.
 
 ## Armadilhas
 
-- Não instalar e desenvolver ao mesmo tempo: a cópia instalada fica em cache por versão. Desenvolver sempre com `--plugin-dir`.
+- Não instalar e desenvolver ao mesmo tempo: a cópia instalada fica em cache por versão. Desenvolver sempre com `--plugin-dir`, com a cópia instalada desabilitada.
 - Nome do plugin não pode começar com `claude-`.
 - `focus`, `closeOnEscape` em `$.ui.open` aceitam só `true`; passar `false` dá erro.
+- Ao mexer na seção "Próximo passo" deste arquivo, lembrar que o painel mostra só as 6 primeiras linhas, sem código.
 
 ## Como rodar e validar
 
 ```bash
 claude plugin validate ./right-panel
 cd right-panel && claude plugin test
+claude plugin disable right-panel@asa-right-panel
 claude --plugin-dir "./right-panel"
 ```
 
+Ao terminar: `claude plugin update right-panel@asa-right-panel` e `claude plugin enable right-panel@asa-right-panel`.
+
 ## Git e instalação
 
-- Branch `main`, sincronizada com `origin` (repo privado: https://github.com/adrianosantostreina/claude-code-right-panel).
-- Plugin **instalado no escopo user** (2026-10-08): marketplace local `asa-right-panel` apontando para esta pasta, `right-panel@asa-right-panel` habilitado (v0.2.0 com o Explorer). Vale para todos os projetos.
-- Para testar mudanças com `--plugin-dir`, desabilite antes a cópia instalada (`claude plugin disable right-panel@asa-right-panel`) para não carregar duas vezes. Ao terminar: suba o `version` e rode `claude plugin update right-panel@asa-right-panel`.
+- Branch `main`, em dia com `origin/main` (0 à frente / 0 atrás) antes deste commit de handoff. Repo privado: https://github.com/adrianosantostreina/claude-code-right-panel.
+- **Mudanças não commitadas**: os 3 arquivos da v0.3.0 (ver acima). O commit deste handoff não inclui esses arquivos.
+- Plugin **instalado no escopo user**: marketplace local `asa-right-panel` apontando para esta pasta, `right-panel@asa-right-panel` habilitado. A cópia instalada ainda é a **v0.2.0** até rodar o `plugin update`.
