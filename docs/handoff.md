@@ -2,19 +2,18 @@
 
 ## Onde paramos (2026-10-14)
 
-A **v0.3.0** do painel está escrita mas **não commitada** (`plugin.json`, `hooks/register.js`, `tests/right-panel.test.ts`, ~600 linhas a mais). Valida (`claude plugin validate`) e passa nos 12 testes (`claude plugin test`).
-O trabalho da v0.3.0 foi feito numa sessão anterior que não atualizou este handoff; o que está abaixo sobre ela foi lido do código, não de uma conversa.
-O usuário já viu a v0.3.0 ao vivo e aprovou o visual, exceto a seção "Próximo passo", que foi removida nesta sessão (ver abaixo). Depois da remoção: validate ok, 12 testes passando.
+A **v0.3.1** está commitada (`d806fc1` e o commit deste handoff) e **instalada no escopo user**. Ela valida (`claude plugin validate`) e passa nos 12 testes (`claude plugin test`).
+É a v0.3.0 sem a seção "Próximo passo", removida a pedido do usuário (ver abaixo). A 0.3.0 chegou a ser instalada antes da remoção; a 0.3.1 substitui essa cópia.
+Duas sessões trabalharam em paralelo neste repo em 2026-10-14. A mensagem do commit `d806fc1` ainda cita "próximo passo do handoff", mas o código commitado já está sem essa seção.
 
 ## Próximo passo concreto
 
-1. Ver a v0.3.0 rodando: desabilitar a cópia instalada e abrir com `claude --plugin-dir "./right-panel"` em terminal largo.
+1. Reiniciar o Claude Code para carregar a 0.3.1 instalada.
 2. Conferir as seções novas (lista em "v0.3.0" abaixo) e o fundo Dracula.
-3. Testar os botões de atalho e `/compact`/`/clear`, e `/painel tema auto`.
-4. Commitar a v0.3.0 (os 3 arquivos) e fazer push.
-5. `claude plugin update right-panel@asa-right-panel` e reabilitar a cópia instalada.
+3. Testar os botões de atalho, `/compact`, `/clear` e `/painel tema auto`.
+4. Fazer o push quando o usuário pedir (`main` está à frente de `origin`).
 
-## v0.3.0 (não commitada)
+## v0.3.0 / v0.3.1
 
 Seções novas no painel, nesta ordem: Sessão (duração, prompts, custo) · Contexto + composição (`session.usage({ breakdown: 'summary' })`) · Limites com tempo até renovar (`↻ 2h10`) · Tarefas · Subagentes (`$.agent.list`) · Arquivos alterados · Git (↑/↓, último commit, +/− por arquivo, não rastreados) · MCP (conectados + contagem de uso) · Atalhos.
 
@@ -68,6 +67,5 @@ Ao terminar: `claude plugin update right-panel@asa-right-panel` e `claude plugin
 
 ## Git e instalação
 
-- Branch `main`, em dia com `origin/main` (0 à frente / 0 atrás) antes deste commit de handoff. Repo privado: https://github.com/adrianosantostreina/claude-code-right-panel.
-- **Mudanças não commitadas**: os 3 arquivos da v0.3.0 (ver acima). O commit deste handoff não inclui esses arquivos.
-- Plugin **instalado no escopo user**: marketplace local `asa-right-panel` apontando para esta pasta, `right-panel@asa-right-panel` habilitado. A cópia instalada ainda é a **v0.2.0** até rodar o `plugin update`.
+- Branch `main`, **à frente de `origin/main`, sem push** (commits de 2026-10-14). Repo privado: https://github.com/adrianosantostreina/claude-code-right-panel.
+- Plugin **instalado no escopo user**: marketplace local `asa-right-panel` apontando para esta pasta, `right-panel@asa-right-panel` habilitado, versão **0.3.1**.

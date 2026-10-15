@@ -1,6 +1,6 @@
 {
   "name": "right-panel",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Painel lateral estilo OpenCode: sessão, contexto, limites, tarefas, subagentes, arquivos, git, MCPs e atalhos; tema Dracula; explorador de arquivos (/explorer)",
   "author": { "name": "Adriano Santos" }
 }
