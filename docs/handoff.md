@@ -1,8 +1,8 @@
 # Handoff — Right Panel
 
-## Onde paramos (2026-10-14)
+## Onde paramos (2026-10-15)
 
-A **v0.3.1** está commitada (`d806fc1` e o commit deste handoff) e **instalada no escopo user**. Ela valida (`claude plugin validate`) e passa nos 12 testes (`claude plugin test`).
+A **v0.3.1** está commitada (`d806fc1` e `7c10cae`), enviada ao GitHub e **instalada no escopo user**. Ela valida (`claude plugin validate`) e passa nos 12 testes (`claude plugin test`).
 É a v0.3.0 sem a seção "Próximo passo", removida a pedido do usuário (ver abaixo). A 0.3.0 chegou a ser instalada antes da remoção; a 0.3.1 substitui essa cópia.
 Duas sessões trabalharam em paralelo neste repo em 2026-10-14. A mensagem do commit `d806fc1` ainda cita "próximo passo do handoff", mas o código commitado já está sem essa seção.
 
@@ -17,11 +17,17 @@ Duas sessões trabalharam em paralelo neste repo em 2026-10-14. A mensagem do co
 Seções novas no painel, nesta ordem: Sessão (duração, prompts, custo) · Contexto + composição (`session.usage({ breakdown: 'summary' })`) · Limites com tempo até renovar (`↻ 2h10`) · Tarefas · Subagentes (`$.agent.list`) · Arquivos alterados · Git (↑/↓, último commit, +/− por arquivo, não rastreados) · MCP (conectados + contagem de uso) · Atalhos.
 
 - **Tema**: `dracula` (padrão, fundo `#282a36` com `minHeight = bodyRows`) ou `auto` (cores do tema do Claude Code). Troca com `/painel tema dracula|auto`, gravado em `$.store` (`theme`). O Explorer usa a mesma paleta.
+- **Cores e fonte (pergunta do usuário, que usa o terminal do VS Code com tema Dracula)**: o mod controla `color` e `backgroundColor` (hex ou chave de tema) em `Box`/`Text`, e foi por isso que o Dracula entrou como padrão. A **fonte não é controlável pelo mod**: vem do terminal (`terminal.integrated.fontFamily`). Não prometer mudança de fonte. A borda e o título do painel continuam nas cores do Claude Code, porque quem os desenha é a moldura do pane, não o mod.
+- `$.ui.view({ agentId })` (abrir o transcript de um subagente), citado no reference.md do skill `plugin-authoring`, **não existe nos tipos desta build** (`$.ui` não lista `view`). Por isso a seção Subagentes é só texto, sem clique.
 - **Atalhos**: botões `commit`, `handoff`, `testes`, `revisar` preenchem o prompt com `$.prompt.fill` (mode `replace`, **sem enviar**); botões `/compact` e `/clear` rodam o comando com `$.command.run`.
 - **Ticker** de 15 s (`$.clock.every`) atualiza duração, reset dos limites e subagentes.
 - **Seção "Próximo passo" removida (2026-10-14, pedido do usuário)**: a v0.3.0 tinha uma seção que lia a seção "Próximo passo" do handoff e mostrava no painel. O usuário viu ao vivo e achou que poluía demais. Foi retirada do código e dos testes (`refreshHandoff`/`nextStepLines`, `$.fs.exists`/`$.fs.read`). **Não reintroduzir** sem o usuário pedir. O botão de atalho `handoff` continua.
 - **MCP**: servidores conectados vêm de `breakdown.mcpTools` + `$.tool.list()` (supera a limitação antiga de "só os usados"); a chave `serverKey` normaliza "claude.ai Gmail" e `claude_ai_Gmail` para a mesma coisa.
 - Teste: `fs.exists` pode receber o caminho já absoluto (o teste do handoff aceita os dois).
+
+## Ideias oferecidas e não escolhidas (2026-10-14)
+
+O usuário marcou as seções acima e deixou de fora: **PR/CI via `gh`**, **último build Delphi** (`build_log.txt`), **resumo da sessão em uma linha com o Haiku** (cada resumo é uma chamada paga; só entraria opcional) e **atividade recente das ferramentas**. Só voltar a elas se o usuário pedir.
 
 ## A validar ao vivo
 
@@ -66,5 +72,5 @@ Ao terminar: `claude plugin update right-panel@asa-right-panel` e `claude plugin
 
 ## Git e instalação
 
-- Branch `main`, em dia com `origin/main` (push feito em 2026-10-14). Repo privado: https://github.com/adrianosantostreina/claude-code-right-panel.
+- Branch `main`, em dia com `origin/main` até `727b183` (push feito em 2026-10-14). O commit deste handoff ficou **só local**: dar push só quando o usuário pedir. Repo privado: https://github.com/adrianosantostreina/claude-code-right-panel.
 - Plugin **instalado no escopo user**: marketplace local `asa-right-panel` apontando para esta pasta, `right-panel@asa-right-panel` habilitado, versão **0.3.1**.
