@@ -269,3 +269,84 @@ test('desenha também no app Desktop', async ($, on) => {
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   expect(await ui.find({ type: 'Text', text: 'meu-projeto' })).toBeDefined()
 })
+
+// ---------------------------------------------------------------- fliperama
+
+const GAME_PANE = { ...PANE, requestId: 'game', props: { ...PANE.props, title: 'Fliperama' } } as const
+const IN_GAME = { in: 'fliperama' }
+
+test('/game abre o fliperama com foco', async ($, on) => {
+  const opens: { id: string; focus?: boolean }[] = []
+  stubSession(on, opens as unknown[])
+  on('ui.panes', () => ({ value: [] }))
+  await start($)
+
+  await $.command.run({ command: 'game', args: '' })
+  expect(opens.some((o) => o.id === 'game' && o.focus === true)).toBe(true)
+})
+
+test('menu escolhe com as setas e o espaço começa o jogo', async ($, on) => {
+  stubSession(on, [])
+  await start($)
+
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ ...GAME_PANE, surface })
+    expect(await ui.find({ type: 'Text', text: 'FLIPERAMA', ...IN_GAME })).toBeDefined()
+    await ui.key({ key: 'down', in: 'fliperama' })
+    await ui.key({ key: ' ', in: 'fliperama' })
+    expect(await ui.find({ type: 'Text', text: /^Snake  pontos 0/, ...IN_GAME })).toBeDefined()
+    await ui.advance(400)
+    await ui.key({ key: 'q', in: 'fliperama' })
+    expect(await ui.find({ type: 'Text', text: 'FLIPERAMA', ...IN_GAME })).toBeDefined()
+    await ui.unmount()
+  }
+})
+
+test('Tetris: espaço solta a peça e marca pontos', async ($, on) => {
+  stubSession(on, [])
+  await start($)
+
+  const ui = await $.ui.mount({ ...GAME_PANE, surface: 'terminal' })
+  await ui.key({ key: '1', in: 'fliperama' })
+  await ui.key({ key: 'up', in: 'fliperama' })
+  await ui.key({ key: 'left', in: 'fliperama' })
+  await ui.key({ key: ' ', in: 'fliperama' })
+  expect(await ui.find({ type: 'Text', text: /^Tetris  pontos [1-9]/, ...IN_GAME })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /Próxima/, ...IN_GAME })).toBeDefined()
+})
+
+test('Pac-Man desenha o labirinto e o p pausa', async ($, on) => {
+  stubSession(on, [])
+  await start($)
+
+  const ui = await $.ui.mount({ ...GAME_PANE, surface: 'terminal' })
+  await ui.key({ key: '3', in: 'fliperama' })
+  expect(await ui.find({ type: 'Text', text: /PRONTO!/, ...IN_GAME })).toBeDefined()
+  await ui.advance(2000)
+  await ui.key({ key: 'p', in: 'fliperama' })
+  expect(await ui.find({ type: 'Text', text: /PAUSADO/, ...IN_GAME })).toBeDefined()
+})
+
+test('recorde que o jogo manda é gravado e aparece no menu', async ($, on) => {
+  const saved = new Map<string, unknown>([['gameHighs', { tetris: 100 }]])
+  stubSession(on, [], saved)
+  await start($)
+
+  const ui = await $.ui.mount({ ...GAME_PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: /Tetris\s+recorde 100/, ...IN_GAME })).toBeDefined()
+  await ui.post({ type: 'score', game: 'snake', score: 70 }, IN_GAME)
+  expect(saved.get('gameHighs')).toEqual({ tetris: 100, snake: 70, pacman: 0 })
+  expect(await ui.find({ type: 'Text', text: /Snake\s+recorde 70/, ...IN_GAME })).toBeDefined()
+
+  // Pontuação menor ou dado inválido não mexem no recorde.
+  await ui.post({ type: 'score', game: 'snake', score: 10 }, IN_GAME)
+  await ui.post({ type: 'score', game: 'xadrez', score: 999 }, IN_GAME)
+  expect(saved.get('gameHighs')).toEqual({ tetris: 100, snake: 70, pacman: 0 })
+})
+
+test('no VS Code, sem Client, o fliperama explica em vez de quebrar', async ($, on) => {
+  stubSession(on, [])
+  await start($)
+  const ui = await $.ui.mount({ ...GAME_PANE, surface: 'vscode' })
+  expect(await ui.find({ type: 'Text', text: /só roda no Claude Code do terminal/ })).toBeDefined()
+})

@@ -12,6 +12,9 @@
 //   - servidores MCP conectados (e quantas vezes cada um foi usado)
 //   - atalhos de prompt e comandos rápidos
 //
+// E dois painéis extras: o explorador de arquivos (/explorer) e o fliperama
+// (/game: Tetris, Snake e Pac-Man, desenhados por um Client em games.js).
+//
 // Regras da análise estática dos mods: cada chamada escrita por extenso
 // ($.ns.metodo), nomes de evento como string literal, e funções que recebem $
 // declaradas no topo do arquivo.
@@ -28,6 +31,8 @@ const TICK_MS = 15_000
 const EXPLORER = 'explorer'
 const EXPLORER_HIDDEN = ['.git']
 const MAX_TREE_ROWS = 500
+const GAME = 'game'
+const GAME_IDS = ['tetris', 'snake', 'pacman']
 
 // Atalhos que preenchem o prompt (sem enviar) e comandos que rodam num clique.
 const PROMPT_SHORTCUTS = [
@@ -91,6 +96,11 @@ let tickTimer = null
 let expanded = new Set([''])
 let dirEntries = new Map() // pasta relativa -> [{ name, kind }] ou { error }
 
+// Fliperama: recordes (gravados no $.store) e o motivo, se o Client falhou.
+let gameHighs = { tetris: 0, snake: 0, pacman: 0 }
+let gameFault = ''
+let gameFocused = false
+
 export function register(on) {
   on('session.start', async ($, e, next) => {
     const result = await next(e)
@@ -116,6 +126,14 @@ export function register(on) {
         immediate: true,
       })
     } catch {}
+    try {
+      await $.command.register({
+        name: 'game',
+        description: 'Abre ou fecha o fliperama: Tetris, Snake e Pac-Man (Right Panel)',
+        immediate: true,
+      })
+    } catch {}
+    await loadGameHighs($)
     startTicker($)
     return result
   })
@@ -139,6 +157,28 @@ export function register(on) {
   on('command.run', { command: 'explorer' }, async ($) => {
     await toggleExplorer($)
     return {}
+  })
+
+  on('command.run', { command: 'game' }, async ($) => {
+    await toggleGame($)
+    return {}
+  })
+
+  // O Client do fliperama terminou uma partida: grava o recorde.
+  on('ui.message', async ($, e, next) => {
+    if (e.requestId !== GAME) return next(e)
+    await next(e)
+    if (!(await saveGameScore($, e.data))) return {}
+    return { props: gameProps() }
+  })
+
+  // O Client não carregou ou quebrou: o painel mostra o motivo em vez do jogo.
+  on('ui.fault', async ($, e, next) => {
+    if (e.requestId === GAME) {
+      gameFault = String(e.reason || 'falha no jogo')
+      $.ui.invalidate('ui.render')
+    }
+    return next(e)
   })
 
   on('tool.call', async ($, e, next) => {
@@ -183,6 +223,11 @@ export function register(on) {
     if (e.requestId === EXPLORER) {
       const { Box, Text, Button } = $.ui.resolve(e)
       return drawExplorer($, Box, Text, Button, bodyRows)
+    }
+    if (e.requestId === GAME) {
+      const { Box, Text, Client } = $.ui.resolve(e)
+      gameFocused = props.isFocused === true
+      return drawGame(Box, Text, Client, e.surface, bodyRows)
     }
     if (e.requestId !== PANE) return next(e)
     const { Box, Text, Button } = $.ui.resolve(e)
@@ -778,6 +823,68 @@ function drawExplorer($, Box, Text, Button, bodyRows) {
   )
 
   return Box({ ...rootProps(bodyRows), children: items })
+}
+
+// ---------------------------------------------------------------- fliperama
+
+async function toggleGame($) {
+  const isOpen = (await $.ui.panes()).some((pane) => pane.id === GAME && pane.isPlaced !== false)
+  if (isOpen) {
+    await $.ui.close({ id: GAME })
+    return
+  }
+  gameFault = ''
+  await $.ui.open({ id: GAME, title: 'Fliperama', focus: true, columns: 44, rows: 28 })
+}
+
+async function loadGameHighs($) {
+  try {
+    const saved = await $.store.get('gameHighs')
+    if (saved && typeof saved === 'object') {
+      for (const id of GAME_IDS) gameHighs[id] = Math.max(0, Number(saved[id]) || 0)
+    }
+  } catch {}
+}
+
+// Os dados vêm do código do Client: confere antes de gravar. Devolve true se é recorde novo.
+async function saveGameScore($, data) {
+  if (!data || data.type !== 'score' || !GAME_IDS.includes(data.game)) return false
+  const score = Math.floor(Number(data.score))
+  if (!Number.isFinite(score) || score <= (gameHighs[data.game] || 0)) return false
+  gameHighs = { ...gameHighs, [data.game]: score }
+  try {
+    await $.store.set('gameHighs', gameHighs)
+  } catch {}
+  return true
+}
+
+function gameProps() {
+  const props = { highs: gameHighs, focused: gameFocused }
+  const bg = palette().bg
+  if (bg) props.bg = bg
+  return props
+}
+
+function drawGame(Box, Text, Client, surface, bodyRows) {
+  // Só o terminal e o desktop desenham um Client (o VS Code e o celular, não).
+  const message = gameFault
+    ? 'O fliperama falhou: ' + gameFault
+    : surface !== 'terminal' && surface !== 'desktop'
+      ? 'O fliperama só roda no Claude Code do terminal.'
+      : ''
+  if (message) {
+    return Box({
+      ...rootProps(bodyRows),
+      children: [
+        Text({ ...styled('err'), children: message }),
+        Text({ ...styled('dim'), children: '/game fecha este painel' }),
+      ],
+    })
+  }
+  return Box({
+    ...rootProps(bodyRows),
+    children: [Client({ key: 'fliperama', module: './games.js', props: gameProps() })],
+  })
 }
 
 // ---------------------------------------------------------------- utilitários

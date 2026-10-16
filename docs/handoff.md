@@ -1,6 +1,20 @@
 # Handoff — Right Panel
 
-## Onde paramos (2026-10-15)
+## Onde paramos (2026-10-15, tarde)
+
+**v0.4.0 (fliperama, `/game`) commitada, enviada ao GitHub e publicada como Release `v0.4.0` (2026-10-15), e instalada no escopo user.** Valida e passa nos 18 testes. Falta o usuário reiniciar o Claude Code e testar ao vivo (ver "Fliperama" abaixo).
+
+## Fliperama (v0.4.0)
+
+- `/game` abre/fecha o pane `game` ("Fliperama", `focus: true`, `columns: 44`, `rows: 28`). Menu: ↑↓ escolhe, espaço/Enter joga, `1 2 3` atalhos, clique no nome também começa.
+- Jogos em `right-panel/hooks/games.js`, um **módulo de superfície** desenhado por `Client({ key: 'fliperama', module: './games.js' })`. Roda no thread de desenho, sem `$`, com `surface.every` (tick de 40 ms), `surface.onKey` e `surface.onPointer`. O validador acha o módulo mesmo com `Client(...)` em chamada, sem JSX.
+- **O `Client` só recebe teclas depois de um clique na área dele** (não existe `$.ui.focus` para Client), e o Esc devolve o teclado. O menu diz isso. Para o jogo não seguir sozinho depois do Esc, o hook passa `focused` (o `isFocused` do Pane) e o Client pausa na transição true→false. **A validar ao vivo** se `isFocused` muda mesmo.
+- Teclas: Tetris ←→ move, ↑ gira (com empurrão na parede), ↓ desce (+1), espaço solta (+2/linha), sombra de onde cai, saco de 7. Snake: setas (fila de 3), espaço pausa. Pac-Man: setas, espaço pausa, 4 fantasmas com alvos diferentes, energizante, túnel na linha 9, 3 vidas, níveis. Em todos: `p` pausa, `q` volta ao menu, WASD também funciona.
+- Recordes: no fim da partida o Client faz `surface.post({ type: 'score', game, score })`; o hook `ui.message` valida, grava em `$.store` (`gameHighs`) e responde `{ props }` com os recordes novos.
+- Sem `Client` (VS Code, celular) ou com `ui.fault`, o pane mostra uma mensagem em vez do jogo.
+- Desenho: cada célula tem 2 colunas (`██`, `▓▓`, `▟▙` fantasma, `▐▌` comida). Pac-Man é `██` amarelo e as paredes `██` azul-acinzentado: só a cor diferencia. Trocar o glyph se ficar confuso ao vivo.
+
+## v0.3.1
 
 A **v0.3.1** está commitada (`d806fc1` e `7c10cae`), enviada ao GitHub e **instalada no escopo user**. Ela valida (`claude plugin validate`) e passa nos 12 testes (`claude plugin test`).
 É a v0.3.0 sem a seção "Próximo passo", removida a pedido do usuário (ver abaixo). A 0.3.0 chegou a ser instalada antes da remoção; a 0.3.1 substitui essa cópia.
@@ -8,6 +22,7 @@ Duas sessões trabalharam em paralelo neste repo em 2026-10-14. A mensagem do co
 
 ## Próximo passo concreto
 
+0. Reiniciar o Claude Code (a 0.4.0 já está instalada), rodar `/game`, clicar no painel e jogar os três. Se algo precisar de ajuste, sai como 0.4.1.
 1. Reiniciar o Claude Code para carregar a 0.3.1 instalada.
 2. Conferir as seções novas (lista em "v0.3.0" abaixo) e o fundo Dracula.
 3. Testar os botões de atalho, `/compact`, `/clear` e `/painel tema auto`.
@@ -72,5 +87,5 @@ Ao terminar: `claude plugin update right-panel@asa-right-panel` e `claude plugin
 
 ## Git e instalação
 
-- Branch `main`, em dia com `origin/main` até `727b183` (push feito em 2026-10-14). O commit deste handoff ficou **só local**: dar push só quando o usuário pedir. Repo privado: https://github.com/adrianosantostreina/claude-code-right-panel.
-- Plugin **instalado no escopo user**: marketplace local `asa-right-panel` apontando para esta pasta, `right-panel@asa-right-panel` habilitado, versão **0.3.1**.
+- Branch `main`, em dia com `origin/main` após o push de 2026-10-15 (feito a pedido do usuário via `/asa:update-github`); primeira tag/Release: `v0.4.0`. Repo privado: https://github.com/adrianosantostreina/claude-code-right-panel.
+- Plugin **instalado no escopo user**: marketplace local `asa-right-panel` apontando para esta pasta, `right-panel@asa-right-panel` habilitado, versão **0.4.0**.
