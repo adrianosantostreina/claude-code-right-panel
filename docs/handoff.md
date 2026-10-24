@@ -8,10 +8,12 @@ Versões:
 - **v0.5.0 — Explorer com ícones coloridos (`/explorer`)**: absorvida pela 0.6.x, nunca publicada sozinha.
 - **v0.6.0 — Sokoban no fliperama**: 4º jogo, 10 fases, o básico (sem contador de movimentos e sem desfazer, a pedido).
 - **v0.6.1 — controles do fliperama por WASD**: commitada, enviada ao GitHub e instalada no escopo user. O usuário testou ao vivo e confirmou: "funcionou tudo". Publicada como Release `v0.6.1` (cobre Explorer + Sokoban + WASD desde a `v0.4.0`).
+- **v0.7.0 — layout novo do painel principal + cores por ambiente**: feita na branch `feature/painel-principal`, commitada, **instalada no escopo user**, **não enviada ao GitHub e sem Release**. O usuário confirmou que o `auto` fica bom no Orca; o layout novo e a detecção automática ainda não foram vistos ao vivo (ele só havia testado o `/painel tema` da versão antiga).
 
 ## Próximo passo concreto
 
-1. Nada pendente de publicação. Próximas ideias só se o usuário pedir.
+1. Reiniciar o Claude Code (a 0.7.0 já está instalada) e olhar o painel no **Orca** e no **VS Code**: ordem, grade de atalhos, setas de composição e de MCP, cores sem `/painel tema`.
+2. Se ficar bom: merge de `feature/painel-principal` na `main`, push e `/asa:update-github` (perguntar a versão; sugestão `v0.7.0`). O commit de handoff `2ba07d3` da `main` também ainda não foi enviado.
 2. Extras já pensados e fora do básico do Sokoban: contador de movimentos, desfazer (`u`/`z`).
 3. Itens menores em "A validar ao vivo".
 
@@ -56,14 +58,17 @@ Versões:
 - **Sem derrota**: o jeito de encerrar é `q`. Por isso `RULES.sokoban.saveOnQuit` faz o `q` gravar a pontuação das fases já feitas (os outros jogos continuam descartando ao sair).
 - Desenho: parede `▒▒` apagada, jogador `██` ciano, caixa `▓▓` laranja (verde no destino), destino ` ○` verde.
 
-## Painel principal (v0.3.x)
+## Painel principal (v0.7.0)
 
-Seções, nesta ordem: Sessão (duração, prompts, custo) · Contexto + composição (`session.usage({ breakdown: 'summary' })`) · Limites com tempo até renovar · Tarefas · Subagentes (`$.agent.list`) · Arquivos alterados · Git · MCP (conectados + contagem de uso) · Atalhos.
+Ordem, de cima para baixo: nome do projeto · branch · modelo · **Atalhos** (grade 2x2: `HANDOFF`, `LER-HANDOFF`, `EXPLORER`, `GAME`) · Sessão (duração, prompts, custo) · Contexto (barra e tokens; `▸ composição` recolhida, de `session.usage({ breakdown: 'summary' })`) · Limites com tempo até renovar · Tarefas · Subagentes (`$.agent.list`; os dois só aparecem quando há conteúdo) · Git · MCP (`MCP  N ▸`, lista recolhida).
 
-- **Tema**: `dracula` (padrão, fundo `#282a36` com `minHeight = bodyRows`) ou `auto`. Troca com `/painel tema dracula|auto`, gravado em `$.store` (`theme`). Os painéis Explorer e Fliperama usam a mesma paleta.
+- **Removidos a pedido do usuário (v0.7.0)**: seção "Arquivos alterados" (o estado `files` e o rastreio de Edit/Write saíram do código; o Git já mostra o +/−), o texto de ajuda do `/painel` no rodapé e os atalhos `commit`/`testes`/`revisar`/`/compact`/`/clear`.
+- **Setas recolhíveis**: `toggle:context` e `toggle:mcp`, começam recolhidas e o estado fica em `$.store` (`sections`).
+- **Atalhos**: `HANDOFF` e `LER-HANDOFF` preenchem o prompt (`$.prompt.fill`, mode `replace`, **sem enviar**); o texto de `LER-HANDOFF` foi escrito por mim, ajustar se o usuário quiser outro. `EXPLORER` e `GAME` chamam `toggleExplorer`/`toggleGame` direto (não passam por `$.command.run`).
+- **Cores por ambiente**: `detectApp` lê `$.env.get('ORCA_APP_VERSION')` (Orca) e `$.env.get('TERM_PROGRAM') === 'vscode'` (VS Code); o resto é `terminal`. Padrões: Orca `auto` (sem fundo próprio, segue o terminal do centro, que combina com os painéis cinzas do Orca), VS Code e terminal `dracula`. `/painel tema dracula|auto` grava só para o ambiente atual em `$.store` (`themes`: `{ orca, vscode, terminal }`); a chave antiga `theme` não é mais lida. Se o usuário quiser o cinza exato do Orca, criar paleta `cinza` com o hex dele.
+- **Tema**: `dracula` (fundo `#282a36` com `minHeight = bodyRows`) ou `auto`. Os painéis Explorer e Fliperama usam a mesma paleta.
 - **Cores e fonte**: o mod controla `color` e `backgroundColor` em `Box`/`Text`. A **fonte não é controlável**: vem do terminal (`terminal.integrated.fontFamily`). A borda e o título do pane são da moldura do Claude Code, não do mod.
 - `$.ui.view({ agentId })` (abrir transcript de subagente) aparece no reference.md do skill, mas **não existe nos tipos desta build**. Subagentes é só texto, sem clique.
-- **Atalhos**: `commit`, `handoff`, `testes`, `revisar` preenchem o prompt (`$.prompt.fill`, mode `replace`, **sem enviar**); `/compact` e `/clear` rodam com `$.command.run`.
 - **Ticker** de 15 s (`$.clock.every`) atualiza duração, reset dos limites e subagentes.
 - **Seção "Próximo passo" foi removida a pedido do usuário** (lia este handoff e mostrava no painel; poluía). **Não reintroduzir.**
 - **MCP**: conectados vêm de `breakdown.mcpTools` + `$.tool.list()`; `serverKey` normaliza "claude.ai Gmail" e `claude_ai_Gmail`.
@@ -112,6 +117,7 @@ Ao terminar: `claude plugin marketplace update asa-right-panel`, `claude plugin 
 
 ## Git e instalação
 
-- Branch `main`. Tag/Release: `v0.6.1` (a mais recente). Repo privado: https://github.com/adrianosantostreina/claude-code-right-panel.
-- Tudo da 0.6.1 está commitado e enviado. `docs/prints/` (screenshot do usuário) segue sem commit, de propósito.
-- Plugin **instalado no escopo user** pelo marketplace local `asa-right-panel` (aponta para esta pasta), habilitado, versão **0.6.1**.
+- Branch de trabalho: `feature/painel-principal` (a partir da `main`). A `main` está em `2ba07d3` (handoff da Release `v0.6.1`, **ainda não enviado**; `origin/main` está em `5770b72`). Tag/Release mais recente: `v0.6.1`. Repo privado: https://github.com/adrianosantostreina/claude-code-right-panel.
+- A 0.7.0 está commitada só na branch `feature/painel-principal`, **sem push**. `docs/prints/` (screenshot do usuário) segue sem commit, de propósito.
+- Plugin **instalado no escopo user** pelo marketplace local `asa-right-panel` (aponta para esta pasta, então segue a branch em que ela estiver), habilitado, versão **0.7.0**. Voltar para a `main` deixa a pasta com o código da 0.6.1 mas o `plugin.json` antigo; reinstalar ao trocar de branch.
+- Testar uma versão nova sem mexer na instalada: abrir um terminal (no Orca, uma aba de terminal comum) na pasta do projeto e rodar `claude plugin disable right-panel@asa-right-panel` e `claude --plugin-dir ./right-panel`; ao terminar, `claude plugin enable right-panel@asa-right-panel`.

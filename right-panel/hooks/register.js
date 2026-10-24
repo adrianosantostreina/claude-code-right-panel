@@ -21,7 +21,6 @@
 
 const PANE = 'right-panel'
 const EDIT_TOOLS = ['Edit', 'Write', 'MultiEdit', 'NotebookEdit']
-const MAX_FILES = 12
 const MAX_TODOS = 15
 const MAX_AGENTS = 6
 const MAX_GIT_FILES = 8
@@ -34,14 +33,19 @@ const MAX_TREE_ROWS = 500
 const GAME = 'game'
 const GAME_IDS = ['tetris', 'snake', 'pacman', 'sokoban']
 
-// Atalhos que preenchem o prompt (sem enviar) e comandos que rodam num clique.
+// Atalhos do painel: os dois primeiros preenchem o prompt (sem enviar); os outros abrem
+// os painéis extras. Aparecem em grade, dois por linha.
 const PROMPT_SHORTCUTS = [
-  { key: 'commit', label: 'commit', text: 'Faça commit das mudanças atuais com uma mensagem descritiva.' },
-  { key: 'handoff', label: 'handoff', text: 'Atualize o handoff do projeto com o estado desta sessão.' },
-  { key: 'testes', label: 'testes', text: 'Rode os testes do projeto e corrija o que falhar.' },
-  { key: 'revisar', label: 'revisar', text: 'Revise as mudanças ainda não commitadas e aponte problemas.' },
+  { key: 'handoff', label: 'HANDOFF', text: 'Atualize o handoff do projeto com o estado desta sessão.' },
+  { key: 'ler-handoff', label: 'LER-HANDOFF', text: 'Leia o handoff do projeto e retome o trabalho de onde a última sessão parou.' },
 ]
-const QUICK_COMMANDS = ['compact', 'clear']
+
+// Onde o Claude Code está rodando, descoberto pelas variáveis de ambiente, e o tema de cada
+// lugar. No Orca o painel segue o fundo do terminal (`auto`) para combinar com os painéis
+// cinzas dele; no VS Code e nos outros terminais usa o Dracula. `/painel tema` troca só o
+// lugar em que você está.
+const APP_LABELS = { orca: 'Orca', vscode: 'VS Code', terminal: 'terminal' }
+const APP_DEFAULT_THEMES = { orca: 'auto', vscode: 'dracula', terminal: 'dracula' }
 
 // Paletas. `dracula` usa as cores do tema Dracula com fundo próprio; `auto`
 // usa as chaves de tema do Claude Code e segue o tema escolhido em /theme.
@@ -144,14 +148,15 @@ let usage = { tokens: 0, window: 0, percent: 0, usd: null, limits: [], startedAt
 let now = 0
 let contextRows = [] // { name, tokens }
 let todos = [] // { id, text, status }
-let files = new Map() // caminho -> número de edições
 let mcpUsed = new Map() // chave do servidor -> { name, count }
 let mcpServers = new Map() // chave do servidor -> nome como o /mcp lista
 let agents = [] // AgentInfo
 let git = null // { upstream, ahead, behind, last, files: [{ path, add, del }], untracked }
 let turns = 0
 let themeName = 'dracula'
+let appName = 'terminal' // orca | vscode | terminal
 let iconSet = 'nerd'
+let sections = { context: false, mcp: false } // seções recolhíveis: true = aberta
 let tickTimer = null
 
 // Explorador: pastas abertas ('' é a raiz) e o conteúdo já lido de cada uma.
@@ -169,13 +174,14 @@ export function register(on) {
     resetState()
     await loadTheme($)
     await loadIcons($)
+    await loadSections($)
     await rebuildFromTranscript($)
     await refreshAll($)
     await maybeAutoOpen($)
     try {
       await $.command.register({
         name: 'painel',
-        description: 'Abre ou fecha o painel lateral (Right Panel); "tema dracula|auto" troca as cores',
+        description: 'Abre ou fecha o painel lateral (Right Panel); "tema dracula|auto" troca as cores do lugar onde você está (Orca, VS Code, terminal)',
         argumentHint: '[tema dracula|auto]',
         immediate: true,
       })
@@ -309,7 +315,6 @@ function resetState() {
   usage = { tokens: 0, window: 0, percent: 0, usd: null, limits: [], startedAt: 0 }
   contextRows = []
   todos = []
-  files = new Map()
   mcpUsed = new Map()
   mcpServers = new Map()
   agents = []
@@ -341,13 +346,6 @@ function trackToolUse(tool, input, result) {
     const name = tool.split('__')[1] || tool
     const key = serverKey(name)
     mcpUsed.set(key, { name, count: ((mcpUsed.get(key) || {}).count || 0) + 1 })
-    return true
-  }
-
-  if (EDIT_TOOLS.includes(tool)) {
-    const path = input.file_path || input.notebook_path
-    if (!path) return false
-    files.set(path, (files.get(path) || 0) + 1)
     return true
   }
 
@@ -542,19 +540,53 @@ async function tick($) {
 
 // ---------------------------------------------------------------- tema
 
-async function loadTheme($) {
+async function detectApp($) {
   try {
-    const saved = await $.store.get('theme')
-    if (typeof saved === 'string' && PALETTES[saved]) themeName = saved
+    if (await $.env.get('ORCA_APP_VERSION')) return 'orca'
+    if ((await $.env.get('TERM_PROGRAM')) === 'vscode') return 'vscode'
+  } catch {}
+  return 'terminal'
+}
+
+// O tema vem do que foi escolhido para este lugar; sem escolha, o padrão dele.
+async function loadTheme($) {
+  appName = await detectApp($)
+  themeName = APP_DEFAULT_THEMES[appName]
+  try {
+    const saved = await $.store.get('themes')
+    if (saved && typeof saved === 'object' && PALETTES[saved[appName]]) themeName = saved[appName]
   } catch {}
 }
 
-async function setTheme($, name) {
-  if (!PALETTES[name]) return 'Temas: ' + Object.keys(PALETTES).join(', ') + ' (atual: ' + themeName + ')'
-  themeName = name
-  await $.store.set('theme', name)
+async function loadSections($) {
+  try {
+    const saved = await $.store.get('sections')
+    if (saved && typeof saved === 'object') sections = { context: saved.context === true, mcp: saved.mcp === true }
+  } catch {}
+}
+
+async function toggleSection($, name) {
+  sections = { ...sections, [name]: !sections[name] }
+  try {
+    await $.store.set('sections', sections)
+  } catch {}
   $.ui.invalidate('ui.render')
-  return 'Tema do painel: ' + name
+}
+
+async function setTheme($, name) {
+  const where = APP_LABELS[appName]
+  if (!PALETTES[name]) {
+    return 'Temas: ' + Object.keys(PALETTES).join(', ') + ' (' + where + ': ' + themeName + ')'
+  }
+  themeName = name
+  let saved = {}
+  try {
+    const stored = await $.store.get('themes')
+    if (stored && typeof stored === 'object') saved = stored
+    await $.store.set('themes', { ...saved, [appName]: name })
+  } catch {}
+  $.ui.invalidate('ui.render')
+  return 'Tema do painel no ' + where + ': ' + name
 }
 
 function palette() {
@@ -610,14 +642,6 @@ async function fillPrompt($, text) {
   }
 }
 
-async function runCommand($, command) {
-  try {
-    await $.command.run({ command })
-  } catch (err) {
-    $.ui.toast('/' + command + ': ' + String((err && err.message) || err))
-  }
-}
-
 function drawPanel($, Box, Text, Button, columns, bodyRows) {
   const width = Math.max(20, columns)
   const rows = []
@@ -628,11 +652,35 @@ function drawPanel($, Box, Text, Button, columns, bodyRows) {
     gap()
     line(text, 'title')
   }
+  // Seta que mostra/oculta uma seção; o estado fica em `sections` e no $.store.
+  const arrow = (name) =>
+    Button({
+      key: 'toggle:' + name,
+      label: sections[name] ? '▾' : '▸',
+      plain: true,
+      onPress: () => toggleSection($, name),
+    })
 
-  // Cabeçalho
+  // Cabeçalho: projeto, branch e modelo
   line(info.project || 'Sessão', 'text', { bold: true })
-  const sub = [info.branch && '⎇ ' + info.branch, info.model].filter(Boolean).join('  ·  ')
-  if (sub) line(sub, 'dim')
+  if (info.branch) line('⎇ ' + info.branch, 'accent')
+  if (info.model) {
+    gap()
+    line(info.model, 'info')
+  }
+
+  // Atalhos, em grade de dois por linha
+  title('Atalhos')
+  const shortcuts = [
+    ...PROMPT_SHORTCUTS.map((s) =>
+      Button({ key: 'prompt:' + s.key, label: s.label, onPress: () => fillPrompt($, s.text) }),
+    ),
+    Button({ key: 'open:explorer', label: 'EXPLORER', onPress: () => toggleExplorer($) }),
+    Button({ key: 'open:game', label: 'GAME', onPress: () => toggleGame($) }),
+  ]
+  for (let i = 0; i < shortcuts.length; i += 2) {
+    rows.push(Box({ flexDirection: 'row', columnGap: 1, children: shortcuts.slice(i, i + 2) }))
+  }
 
   // Sessão: duração, prompts e custo
   title('Sessão')
@@ -642,7 +690,7 @@ function drawPanel($, Box, Text, Button, columns, bodyRows) {
   if (facts.length) line(facts.join('  ·  '), 'text')
   if (usage.usd != null) line('Custo: US$ ' + usage.usd.toFixed(2), 'text')
 
-  // Contexto e do que ele é feito
+  // Contexto; a composição (onde gastam os tokens) fica atrás de uma seta
   title('Contexto')
   if (usage.window) {
     const barWidth = Math.min(24, width - 8)
@@ -651,9 +699,19 @@ function drawPanel($, Box, Text, Button, columns, bodyRows) {
   } else {
     line('aguardando a primeira resposta', 'dim')
   }
-  for (const row of contextRows.slice(0, MAX_CONTEXT_ROWS)) {
-    const pct = row.window ? Math.round((row.tokens / row.window) * 100) : 0
-    line(row.name.slice(0, 15).padEnd(16) + short(row.tokens).padStart(6) + '  ' + pct + '%', 'dim')
+  if (contextRows.length) {
+    rows.push(
+      Box({
+        flexDirection: 'row',
+        children: [arrow('context'), Text({ ...styled('dim'), children: ' composição' })],
+      }),
+    )
+    if (sections.context) {
+      for (const row of contextRows.slice(0, MAX_CONTEXT_ROWS)) {
+        const pct = row.window ? Math.round((row.tokens / row.window) * 100) : 0
+        line(row.name.slice(0, 15).padEnd(16) + short(row.tokens).padStart(6) + '  ' + pct + '%', 'dim')
+      }
+    }
   }
 
   // Limites do plano e quando renovam
@@ -693,16 +751,6 @@ function drawPanel($, Box, Text, Button, columns, bodyRows) {
     if (agents.length > MAX_AGENTS) line('… +' + (agents.length - MAX_AGENTS), 'dim')
   }
 
-  // Arquivos alterados
-  if (files.size) {
-    title('Arquivos alterados  ' + files.size)
-    const list = [...files.entries()].slice(-MAX_FILES).reverse()
-    for (const [path, count] of list) {
-      line('• ' + baseName(path) + (count > 1 ? '  ×' + count : ''), 'text')
-    }
-    if (files.size > MAX_FILES) line('… +' + (files.size - MAX_FILES), 'dim')
-  }
-
   // Git
   if (git) {
     title('Git')
@@ -720,45 +768,27 @@ function drawPanel($, Box, Text, Button, columns, bodyRows) {
     if (!git.files.length && !git.untracked) line('nada a commitar', 'dim')
   }
 
-  // MCP: conectados e quantas vezes cada um foi usado
+  // MCP: conectados e quantas vezes cada um foi usado; a lista fica atrás de uma seta
   const servers = new Map(mcpServers)
   for (const [key, used] of mcpUsed) if (!servers.has(key)) servers.set(key, used.name)
   const uses = (key) => (mcpUsed.get(key) || {}).count || 0
   if (servers.size) {
-    title('MCP  ' + servers.size)
-    const list = [...servers.entries()].sort((a, b) => uses(b[0]) - uses(a[0]))
-    for (const [key, name] of list.slice(0, MAX_MCP)) {
-      const count = uses(key)
-      line((count ? '● ' : '○ ') + serverLabel(name) + (count ? '  ' + count : ''), count ? 'ok' : 'dim')
+    gap()
+    rows.push(
+      Box({
+        flexDirection: 'row',
+        children: [Text({ ...styled('title'), children: 'MCP  ' + servers.size + ' ' }), arrow('mcp')],
+      }),
+    )
+    if (sections.mcp) {
+      const list = [...servers.entries()].sort((a, b) => uses(b[0]) - uses(a[0]))
+      for (const [key, name] of list.slice(0, MAX_MCP)) {
+        const count = uses(key)
+        line((count ? '● ' : '○ ') + serverLabel(name) + (count ? '  ' + count : ''), count ? 'ok' : 'dim')
+      }
+      if (servers.size > MAX_MCP) line('… +' + (servers.size - MAX_MCP), 'dim')
     }
-    if (servers.size > MAX_MCP) line('… +' + (servers.size - MAX_MCP), 'dim')
   }
-
-  // Ações
-  title('Atalhos')
-  rows.push(
-    Box({
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      columnGap: 1,
-      children: PROMPT_SHORTCUTS.map((s) =>
-        Button({ key: 'prompt:' + s.key, label: s.label, onPress: () => fillPrompt($, s.text) }),
-      ),
-    }),
-  )
-  rows.push(
-    Box({
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      columnGap: 1,
-      children: QUICK_COMMANDS.map((c) =>
-        Button({ key: 'cmd:' + c, label: '/' + c, variant: 'secondary', onPress: () => runCommand($, c) }),
-      ),
-    }),
-  )
-
-  gap()
-  line('/painel abre e fecha · /painel tema', 'dim')
 
   return Box({ ...rootProps(bodyRows), children: rows })
 }

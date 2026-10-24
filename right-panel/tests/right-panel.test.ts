@@ -40,6 +40,7 @@ function stubSession(on, opens: unknown[], saved = new Map<string, unknown>(), o
     if (args.startsWith('status --porcelain')) return out(' M right-panel/hooks/register.js\n?? novo.txt\n')
     return { value: { exitCode: 1, stdout: '', stderr: '' } }
   })
+  stub('env.get', () => ({ value: undefined }))
   on('clock.now', () => ({ value: Date.parse('2026-10-14T12:00:00Z') }))
   on('clock.every', () => ({ value: undefined }))
   stub('agent.list', () => ({ value: [] }))
@@ -76,6 +77,30 @@ test('abre o painel sozinho e mostra projeto, branch, contexto e custo', async (
   expect(await ui.find({ type: 'Text', text: /^5h/ })).toBeDefined()
 })
 
+test('cabeçalho em ordem: projeto, branch, modelo e depois os atalhos em grade', async ($, on) => {
+  stubSession(on, [])
+  await start($)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  const tree = JSON.stringify(await ui.drawn())
+  const at = (text: string) => tree.indexOf(text)
+  expect(at('meu-projeto')).toBeGreaterThan(-1)
+  expect(at('meu-projeto')).toBeLessThan(at('⎇ main'))
+  expect(at('⎇ main')).toBeLessThan(at('Opus 5.5'))
+  expect(at('Opus 5.5')).toBeLessThan(at('Atalhos'))
+  expect(at('Atalhos')).toBeLessThan(at('Contexto'))
+  expect(at('Contexto')).toBeLessThan(at('Limites'))
+  expect(at('Limites')).toBeLessThan(at('Git'))
+  for (const key of ['prompt:handoff', 'prompt:ler-handoff', 'open:explorer', 'open:game']) {
+    expect(await ui.find({ type: 'Button', key })).toBeDefined()
+  }
+  // sem o que saiu do painel
+  expect(await ui.find({ type: 'Text', text: /\/painel abre e fecha/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /Arquivos alterados/ })).toBeUndefined()
+  expect(await ui.find({ key: 'prompt:commit' })).toBeUndefined()
+  expect(await ui.find({ key: 'cmd:compact' })).toBeUndefined()
+})
+
 test('não abre sozinho quando o usuário fechou antes', async ($, on) => {
   const opens: unknown[] = []
   stubSession(on, opens, new Map([['autoOpen', false]]))
@@ -83,8 +108,9 @@ test('não abre sozinho quando o usuário fechou antes', async ($, on) => {
   expect(opens.length).toBe(0)
 })
 
-test('lista tarefas, arquivos alterados e MCPs usados', async ($, on) => {
-  stubSession(on, [])
+test('lista tarefas e MCPs usados, com a lista de MCPs atrás de uma seta', async ($, on) => {
+  const saved = new Map<string, unknown>()
+  stubSession(on, [], saved)
   await start($)
 
   await $.tool.call({
@@ -95,15 +121,20 @@ test('lista tarefas, arquivos alterados e MCPs usados', async ($, on) => {
       { content: 'Publicar', status: 'pending', activeForm: 'Publicando' },
     ],
   })
-  await $.tool.call({ tool: 'Edit', file_path: 'D:\\proj\\src\\app.ts', old_string: 'a', new_string: 'b' })
-  await $.tool.call({ tool: 'Edit', file_path: 'D:\\proj\\src\\app.ts', old_string: 'b', new_string: 'c' })
   await $.tool.call({ tool: 'mcp__claude_ai_Gmail__search_threads', query: 'x' })
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: 'Tarefas  1/3' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: '▶ Montando painel' })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: '• app.ts  ×2' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^MCP  1/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '● Gmail  1' })).toBeUndefined()
+
+  await ui.press({ key: 'toggle:mcp' })
   expect(await ui.find({ type: 'Text', text: '● Gmail  1' })).toBeDefined()
+  expect(saved.get('sections')).toEqual({ context: false, mcp: true })
+
+  await ui.press({ key: 'toggle:mcp' })
+  expect(await ui.find({ type: 'Text', text: '● Gmail  1' })).toBeUndefined()
 })
 
 test('acompanha TaskCreate e TaskUpdate', async ($, on) => {
@@ -240,6 +271,9 @@ test('mostra sessão, composição do contexto, reset dos limites e git', async 
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /⏱ 1h 05min/ })).toBeDefined()
+  // a composição do contexto começa recolhida e abre pela seta
+  expect(await ui.find({ type: 'Text', text: /^Mensagens/ })).toBeUndefined()
+  await ui.press({ key: 'toggle:context' })
   expect(await ui.find({ type: 'Text', text: /^Mensagens\s+30\.0k\s+15%$/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /^Free space/ })).toBeUndefined()
   expect(await ui.find({ type: 'Text', text: /^5h .*↻ 2h10$/ })).toBeDefined()
@@ -247,6 +281,8 @@ test('mostra sessão, composição do contexto, reset dos limites e git', async 
   expect(await ui.find({ type: 'Text', text: 'cf8940f feat: explorer' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /^\+12 −3\s+register\.js$/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: '? 1 não rastreado' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '○ Gmail' })).toBeUndefined()
+  await ui.press({ key: 'toggle:mcp' })
   expect(await ui.find({ type: 'Text', text: '○ Gmail' })).toBeDefined()
 })
 
@@ -268,25 +304,28 @@ test('mostra subagentes, os ativos primeiro', async ($, on) => {
   expect(await ui.find({ type: 'Text', text: 'Próximo passo' })).toBeUndefined()
 })
 
-test('atalho preenche o prompt e comando rápido roda o /compact', async ($, on) => {
-  stubSession(on, [])
+test('atalhos: HANDOFF e LER-HANDOFF preenchem o prompt; EXPLORER e GAME abrem os painéis', async ($, on) => {
+  const opens: { id?: string; focus?: boolean }[] = []
+  stubSession(on, opens as unknown[])
+  on('ui.panes', () => ({ value: [] }))
+  stubFs(on)
   const fills: string[] = []
-  const runs: string[] = []
   on('prompt.fill', ($, e) => {
     fills.push(e.text)
     return { isFilled: true, text: e.text, cursor: e.text.length }
   })
-  on('command.run', { command: 'compact' }, ($, e) => {
-    runs.push(e.command)
-    return {}
-  })
   await start($)
 
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  await ui.press({ key: 'prompt:commit' })
-  expect(fills[0]).toMatch(/commit/)
-  await ui.press({ key: 'cmd:compact' })
-  expect(runs).toEqual(['compact'])
+  await ui.press({ key: 'prompt:handoff' })
+  expect(fills[0]).toMatch(/Atualize o handoff/)
+  await ui.press({ key: 'prompt:ler-handoff' })
+  expect(fills[1]).toMatch(/Leia o handoff/)
+
+  await ui.press({ key: 'open:explorer' })
+  expect(opens.some((o) => o.id === 'explorer')).toBe(true)
+  await ui.press({ key: 'open:game' })
+  expect(opens.some((o) => o.id === 'game' && o.focus === true)).toBe(true)
 })
 
 test('/painel tema troca e grava o tema', async ($, on) => {
@@ -295,10 +334,44 @@ test('/painel tema troca e grava o tema', async ($, on) => {
   await start($)
 
   const r = await $.command.run({ command: 'painel', args: 'tema auto' })
-  expect(saved.get('theme')).toBe('auto')
-  expect(r.text).toBe('Tema do painel: auto')
+  expect(saved.get('themes')).toEqual({ terminal: 'auto' })
+  expect(r.text).toBe('Tema do painel no terminal: auto')
   const bad = await $.command.run({ command: 'painel', args: 'tema xpto' })
-  expect(bad.text).toMatch(/^Temas: dracula, auto/)
+  expect(bad.text).toMatch(/^Temas: dracula, auto \(terminal: auto\)/)
+})
+
+const env = (variables: Record<string, string>) => ({
+  'env.get': ($, e) => ({ value: variables[e.name] }),
+})
+
+const APPS = [
+  { app: 'Orca', variables: { ORCA_APP_VERSION: '1.4.237' }, dracula: false },
+  { app: 'VS Code', variables: { TERM_PROGRAM: 'vscode' }, dracula: true },
+  { app: 'terminal', variables: {}, dracula: true },
+]
+for (const { app, variables, dracula } of APPS) {
+  test('cores por ambiente: ' + app + (dracula ? ' usa o Dracula' : ' segue o fundo do terminal'), async ($, on) => {
+    stubSession(on, [], undefined, env(variables))
+    await start($)
+
+    const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+    expect(JSON.stringify(await ui.drawn()).includes('#282a36')).toBe(dracula)
+  })
+}
+
+test('cores por ambiente: a escolha vale só para o ambiente atual', async ($, on) => {
+  const saved = new Map<string, unknown>([['themes', { vscode: 'auto' }]])
+  stubSession(on, [], saved, env({ ORCA_APP_VERSION: '1.4.237' }))
+  await start($)
+
+  // a escolha gravada para outro ambiente não muda o Orca
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(JSON.stringify(await ui.drawn()).includes('#282a36')).toBe(false)
+
+  const r = await $.command.run({ command: 'painel', args: 'tema dracula' })
+  expect(r.text).toBe('Tema do painel no Orca: dracula')
+  expect(saved.get('themes')).toEqual({ vscode: 'auto', orca: 'dracula' })
+  expect(JSON.stringify(await ui.drawn()).includes('#282a36')).toBe(true)
 })
 
 test('desenha também no app Desktop', async ($, on) => {
