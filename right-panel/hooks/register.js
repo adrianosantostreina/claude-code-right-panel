@@ -32,6 +32,8 @@ const EXPLORER_HIDDEN = ['.git']
 const MAX_TREE_ROWS = 500
 const GAME = 'game'
 const GAME_IDS = ['tetris', 'snake', 'pacman', 'sokoban']
+const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
+const WEEK_HEADS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']
 
 // Atalhos do painel: os dois primeiros preenchem o prompt (sem enviar); os outros abrem
 // os painéis extras. Aparecem em grade, dois por linha.
@@ -156,8 +158,12 @@ let turns = 0
 let themeName = 'dracula'
 let appName = 'terminal' // orca | vscode | terminal
 let iconSet = 'nerd'
-let sections = { context: false, mcp: false } // seções recolhíveis: true = aberta
+let sections = { context: false, mcp: false, calendar: true } // seções recolhíveis: true = aberta
 let tickTimer = null
+
+// Calendário: quantos meses à frente (ou atrás) do mês atual; relógio: o motivo, se o Client falhou.
+let calendarOffset = 0
+let clockFault = ''
 
 // Explorador: pastas abertas ('' é a raiz) e o conteúdo já lido de cada uma.
 let expanded = new Set([''])
@@ -250,6 +256,11 @@ export function register(on) {
       gameFault = String(e.reason || 'falha no jogo')
       $.ui.invalidate('ui.render')
     }
+    // O relógio é um Client dentro do painel principal: sem ele, fica a hora em texto.
+    if (e.requestId === PANE) {
+      clockFault = String(e.reason || 'falha no relógio')
+      $.ui.invalidate('ui.render')
+    }
     return next(e)
   })
 
@@ -302,9 +313,9 @@ export function register(on) {
       return drawGame(Box, Text, Client, e.surface, bodyRows)
     }
     if (e.requestId !== PANE) return next(e)
-    const { Box, Text, Button } = $.ui.resolve(e)
+    const { Box, Text, Button, Client } = $.ui.resolve(e)
     const columns = props.bodyColumns || 40
-    return drawPanel($, Box, Text, Button, columns, bodyRows)
+    return drawPanel($, Box, Text, Button, Client, e.surface, columns, bodyRows)
   })
 }
 
@@ -320,6 +331,7 @@ function resetState() {
   agents = []
   git = null
   turns = 0
+  clockFault = ''
 }
 
 // Reaplica as chamadas de ferramenta já feitas (útil em /resume e ao recarregar o mod).
@@ -561,7 +573,9 @@ async function loadTheme($) {
 async function loadSections($) {
   try {
     const saved = await $.store.get('sections')
-    if (saved && typeof saved === 'object') sections = { context: saved.context === true, mcp: saved.mcp === true }
+    if (saved && typeof saved === 'object') {
+      sections = { context: saved.context === true, mcp: saved.mcp === true, calendar: saved.calendar !== false }
+    }
   } catch {}
 }
 
@@ -642,7 +656,13 @@ async function fillPrompt($, text) {
   }
 }
 
-function drawPanel($, Box, Text, Button, columns, bodyRows) {
+// Troca o mês mostrado no calendário (step 0 volta para o mês atual).
+function shiftMonth($, step) {
+  calendarOffset = step === 0 ? 0 : calendarOffset + step
+  $.ui.invalidate('ui.render')
+}
+
+function drawPanel($, Box, Text, Button, Client, surface, columns, bodyRows) {
   const width = Math.max(20, columns)
   const rows = []
   const line = (text, style, extra) =>
@@ -664,10 +684,7 @@ function drawPanel($, Box, Text, Button, columns, bodyRows) {
   // Cabeçalho: projeto, branch e modelo
   line(info.project || 'Sessão', 'text', { bold: true })
   if (info.branch) line('⎇ ' + info.branch, 'accent')
-  if (info.model) {
-    gap()
-    line(info.model, 'info')
-  }
+  if (info.model) line(info.model, 'info')
 
   // Atalhos, em grade de dois por linha
   title('Atalhos')
@@ -687,30 +704,32 @@ function drawPanel($, Box, Text, Button, columns, bodyRows) {
   const facts = []
   if (usage.startedAt && now > usage.startedAt) facts.push('⏱ ' + duration(now - usage.startedAt))
   if (turns) facts.push(turns + (turns === 1 ? ' prompt' : ' prompts'))
+  if (usage.usd != null) facts.push('US$ ' + usage.usd.toFixed(2))
   if (facts.length) line(facts.join('  ·  '), 'text')
-  if (usage.usd != null) line('Custo: US$ ' + usage.usd.toFixed(2), 'text')
 
   // Contexto; a composição (onde gastam os tokens) fica atrás de uma seta
   title('Contexto')
   if (usage.window) {
     const barWidth = Math.min(24, width - 8)
     line(bar(usage.percent, barWidth) + ' ' + usage.percent + '%', levelStyle(usage.percent))
-    line(short(usage.tokens) + ' / ' + short(usage.window) + ' tokens', 'dim')
-  } else {
-    line('aguardando a primeira resposta', 'dim')
   }
-  if (contextRows.length) {
-    rows.push(
-      Box({
-        flexDirection: 'row',
-        children: [arrow('context'), Text({ ...styled('dim'), children: ' composição' })],
-      }),
-    )
-    if (sections.context) {
-      for (const row of contextRows.slice(0, MAX_CONTEXT_ROWS)) {
-        const pct = row.window ? Math.round((row.tokens / row.window) * 100) : 0
-        line(row.name.slice(0, 15).padEnd(16) + short(row.tokens).padStart(6) + '  ' + pct + '%', 'dim')
-      }
+  // Tokens e a seta da composição na mesma linha
+  const tokens = usage.window
+    ? short(usage.tokens) + ' / ' + short(usage.window) + ' tokens'
+    : 'aguardando a primeira resposta'
+  rows.push(
+    Box({
+      flexDirection: 'row',
+      children: [
+        Text({ wrap: 'truncate-end', ...styled('dim'), children: tokens }),
+        ...(contextRows.length ? [Text({ children: '  ' }), arrow('context'), Text({ ...styled('dim'), children: ' composição' })] : []),
+      ],
+    }),
+  )
+  if (contextRows.length && sections.context) {
+    for (const row of contextRows.slice(0, MAX_CONTEXT_ROWS)) {
+      const pct = row.window ? Math.round((row.tokens / row.window) * 100) : 0
+      line(row.name.slice(0, 15).padEnd(16) + short(row.tokens).padStart(6) + '  ' + pct + '%', 'dim')
     }
   }
 
@@ -757,14 +776,14 @@ function drawPanel($, Box, Text, Button, columns, bodyRows) {
     const sync = git.upstream
       ? '↑' + git.ahead + ' ↓' + git.behind + (git.ahead || git.behind ? '' : '  em dia')
       : 'sem upstream'
-    line(sync, git.behind ? 'warn' : git.ahead ? 'info' : 'ok')
+    const untrackedText = git.untracked ? '  ·  ? ' + git.untracked + ' não rastreado' + (git.untracked === 1 ? '' : 's') : ''
+    line(sync + untrackedText, git.behind ? 'warn' : git.ahead ? 'info' : 'ok')
     line(git.last, 'dim')
     for (const f of git.files.slice(0, MAX_GIT_FILES)) {
       const delta = f.add === '-' ? 'bin' : '+' + f.add + ' −' + f.del
       line(delta.padEnd(10) + baseName(f.path), 'text')
     }
     if (git.files.length > MAX_GIT_FILES) line('… +' + (git.files.length - MAX_GIT_FILES), 'dim')
-    if (git.untracked) line('? ' + git.untracked + ' não rastreado' + (git.untracked === 1 ? '' : 's'), 'dim')
     if (!git.files.length && !git.untracked) line('nada a commitar', 'dim')
   }
 
@@ -790,7 +809,74 @@ function drawPanel($, Box, Text, Button, columns, bodyRows) {
     }
   }
 
+  // Embaixo de tudo: relógio digital (Client, com segundos) e calendário do mês, recolhível
+  gap()
+  rows.push(drawClock(Box, Text, Client, surface))
+  gap()
+  rows.push(...drawCalendar($, Box, Text, Button, arrow('calendar')))
+
   return Box({ ...rootProps(bodyRows), children: rows })
+}
+
+// ---------------------------------------------------------------- relógio e calendário
+
+// Só o terminal e o desktop desenham um Client; nos outros (ou se ele falhar) fica HH:MM em texto,
+// atualizado pelo ticker de 15 s.
+function drawClock(Box, Text, Client, surface) {
+  if (!clockFault && Client && (surface === 'terminal' || surface === 'desktop')) {
+    const props = {}
+    if (palette().bg) props.bg = palette().bg
+    // 3 linhas de dígitos.
+    return Client({ key: 'relogio', module: './clock.js', props, width: '100%', height: 3 })
+  }
+  const date = new Date(now || Date.now())
+  const hhmm = String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0')
+  return Text({ ...styled('title'), children: '🕒 ' + hhmm })
+}
+
+// Grade do mês mostrado: semanas começando no domingo, 0 onde não há dia.
+function monthGrid(year, month) {
+  const first = new Date(year, month, 1).getDay()
+  const days = new Date(year, month + 1, 0).getDate()
+  const cells = Array(first).fill(0)
+  for (let d = 1; d <= days; d++) cells.push(d)
+  while (cells.length % 7) cells.push(0)
+  const weeks = []
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
+  return weeks
+}
+
+// Título (com a seta que recolhe) e, abertos, o mês com ‹ ›, os dias da semana e as semanas.
+function drawCalendar($, Box, Text, Button, arrow) {
+  const today = new Date(now || Date.now())
+  const shown = new Date(today.getFullYear(), today.getMonth() + calendarOffset, 1)
+  const isCurrent = calendarOffset === 0
+  const out = []
+
+  const header = [Text({ ...styled('title'), children: 'Calendário ' }), arrow]
+  if (!sections.calendar) return [Box({ flexDirection: 'row', children: header })]
+  header.push(
+    Text({ children: ' ' }),
+    Button({ key: 'cal:prev', label: '‹', plain: true, onPress: () => shiftMonth($, -1) }),
+    Text({ ...styled('info'), bold: true, children: ' ' + MONTHS[shown.getMonth()] + ' ' + shown.getFullYear() + ' ' }),
+    Button({ key: 'cal:next', label: '›', plain: true, onPress: () => shiftMonth($, 1) }),
+  )
+  if (!isCurrent) header.push(Text({ children: ' ' }), Button({ key: 'cal:today', label: 'hoje', plain: true, onPress: () => shiftMonth($, 0) }))
+  out.push(Box({ flexDirection: 'row', children: header }))
+
+  out.push(Text({ ...styled('dim'), children: WEEK_HEADS.map((c) => c.padStart(2) + ' ').join('') }))
+  for (const week of monthGrid(shown.getFullYear(), shown.getMonth())) {
+    const cells = week.flatMap((day, i) => {
+      if (!day) return ['   ']
+      const label = String(day).padStart(2)
+      if (isCurrent && day === today.getDate()) {
+        return [Text({ ...styled('accent'), bold: true, inverse: true, children: label }), ' ']
+      }
+      return [Text({ ...styled(i === 0 ? 'orange' : 'text'), children: label + ' ' })]
+    })
+    out.push(Text({ wrap: 'truncate-end', children: cells }))
+  }
+  return out
 }
 
 // ---------------------------------------------------------------- explorador

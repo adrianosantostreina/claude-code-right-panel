@@ -73,11 +73,11 @@ test('abre o painel sozinho e mostra projeto, branch, contexto e custo', async (
   expect(await ui.find({ type: 'Text', text: /main/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /25%$/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: '50.0k / 200.0k tokens' })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: 'Custo: US$ 1.23' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /US\$ 1\.23/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /^5h/ })).toBeDefined()
 })
 
-test('cabeçalho em ordem: projeto, branch, modelo e depois os atalhos em grade', async ($, on) => {
+test('ordem: projeto, branch, modelo, atalhos em grade e, no fim, relógio e calendário', async ($, on) => {
   stubSession(on, [])
   await start($)
 
@@ -91,6 +91,8 @@ test('cabeçalho em ordem: projeto, branch, modelo e depois os atalhos em grade'
   expect(at('Atalhos')).toBeLessThan(at('Contexto'))
   expect(at('Contexto')).toBeLessThan(at('Limites'))
   expect(at('Limites')).toBeLessThan(at('Git'))
+  expect(at('Git')).toBeLessThan(at('relogio'))
+  expect(at('relogio')).toBeLessThan(at('Calendário'))
   for (const key of ['prompt:handoff', 'prompt:ler-handoff', 'open:explorer', 'open:game']) {
     expect(await ui.find({ type: 'Button', key })).toBeDefined()
   }
@@ -131,7 +133,7 @@ test('lista tarefas e MCPs usados, com a lista de MCPs atrás de uma seta', asyn
 
   await ui.press({ key: 'toggle:mcp' })
   expect(await ui.find({ type: 'Text', text: '● Gmail  1' })).toBeDefined()
-  expect(saved.get('sections')).toEqual({ context: false, mcp: true })
+  expect(saved.get('sections')).toEqual({ context: false, mcp: true, calendar: true })
 
   await ui.press({ key: 'toggle:mcp' })
   expect(await ui.find({ type: 'Text', text: '● Gmail  1' })).toBeUndefined()
@@ -379,6 +381,65 @@ test('desenha também no app Desktop', async ($, on) => {
   await start($)
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   expect(await ui.find({ type: 'Text', text: 'meu-projeto' })).toBeDefined()
+})
+
+// ---------------------------------------------------------------- relógio e calendário
+
+
+
+test('relógio: Client com dígitos em blocos e segundos andando', async ($, on) => {
+  stubSession(on, [])
+  await start($)
+
+  for (const surface of ['terminal', 'desktop'] as const) {
+    const ui = await $.ui.mount({ ...PANE, surface })
+    expect(await ui.find({ type: 'Client', key: 'relogio' })).toBeDefined()
+    expect(/[█▀▄]/.test(JSON.stringify(await ui.drawn()))).toBe(true)
+    await ui.advance(3000)
+    expect(await ui.find({ type: 'Client', key: 'relogio' })).toBeDefined()
+    await ui.unmount()
+  }
+})
+
+test('relógio: no VS Code (sem Client) cai para HH:MM em texto', async ($, on) => {
+  stubSession(on, [])
+  await start($)
+  const ui = await $.ui.mount({ ...PANE, surface: 'vscode' })
+  expect(await ui.find({ type: 'Client', key: 'relogio' })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /^🕒 \d\d:\d\d$/ })).toBeDefined()
+})
+
+test('calendário: mês atual com hoje destacado, navegação ‹ › e volta com hoje', async ($, on) => {
+  stubSession(on, [])
+  await start($)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ type: 'Text', text: ' outubro 2026 ' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: 'D  S  T  Q  Q  S  S ' })).toBeDefined()
+  // 14/10/2026 é quarta; o dia de hoje vem num Text próprio, em negrito e invertido
+  expect(await ui.find({ type: 'Text', text: /^14$/ })).toBeDefined()
+  expect(await ui.find({ key: 'cal:today' })).toBeUndefined()
+
+  await ui.press({ key: 'cal:next' })
+  expect(await ui.find({ type: 'Text', text: ' novembro 2026 ' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^14$/ })).toBeUndefined()
+  await ui.press({ key: 'cal:prev' })
+  await ui.press({ key: 'cal:prev' })
+  expect(await ui.find({ type: 'Text', text: ' setembro 2026 ' })).toBeDefined()
+  await ui.press({ key: 'cal:today' })
+  expect(await ui.find({ type: 'Text', text: ' outubro 2026 ' })).toBeDefined()
+})
+
+test('calendário: a seta recolhe a grade e a escolha fica gravada', async ($, on) => {
+  const saved = new Map<string, unknown>()
+  stubSession(on, [], saved)
+  await start($)
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await ui.find({ key: 'cal:prev' })).toBeDefined()
+  await ui.press({ key: 'toggle:calendar' })
+  expect(await ui.find({ key: 'cal:prev' })).toBeUndefined()
+  expect((saved.get('sections') as { calendar: boolean }).calendar).toBe(false)
 })
 
 // ---------------------------------------------------------------- fliperama

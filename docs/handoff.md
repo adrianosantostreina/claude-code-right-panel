@@ -9,11 +9,12 @@ Versões:
 - **v0.6.0 — Sokoban no fliperama**: 4º jogo, 10 fases, o básico (sem contador de movimentos e sem desfazer, a pedido).
 - **v0.6.1 — controles do fliperama por WASD**: commitada, enviada ao GitHub e instalada no escopo user. O usuário testou ao vivo e confirmou: "funcionou tudo". Publicada como Release `v0.6.1` (cobre Explorer + Sokoban + WASD desde a `v0.4.0`).
 - **v0.7.0 — layout novo do painel principal + cores por ambiente**: feita em `feature/painel-principal`, instalada no escopo user e **versão atual do plugin**. Entra na `main` e vira Release junto com este ajuste (a Release cobre tudo desde a `v0.6.1`). O usuário confirmou que o `auto` fica bom no Orca; o layout novo e a detecção automática ainda não foram vistos ao vivo (ele só havia testado o `/painel tema` da versão antiga).
-- **v0.8.0 — mais 5 jogos + Sokoban maior: DESCARTADA** (2026-10-24). Os jogos novos deram erro e o usuário mandou descartar. O código ficou guardado só no `stash@{0}` ("mais-jogos: trabalho descartado"); **não está em nenhuma branch**. Veja a seção "v0.8.0 descartada".
+- **v0.8.0 — relógio digital + calendário no fim do painel**: feita na `main`, instalada e **versão atual**. O usuário viu ao vivo no Orca e aprovou ("ficou ótimo"). Veja a seção "Relógio e calendário (v0.8.0)".
+- **Antiga proposta de v0.8.0 (mais 5 jogos + Sokoban maior): DESCARTADA** (2026-10-24). Os jogos novos deram erro e o usuário mandou descartar. O código ficou guardado só no `stash@{0}` ("mais-jogos: trabalho descartado"); **não está em nenhuma branch**. Veja a seção "v0.8.0 descartada".
 
 ## Próximo passo concreto
 
-1. Reiniciar o Claude Code e olhar o painel principal no **Orca** e no **VS Code** (ordem, grade de atalhos, setas, cores sem `/painel tema`; a 0.7.0 nunca foi vista ao vivo).
+1. Olhar o painel principal no **VS Code** (o Orca já foi visto ao vivo na 0.8.0): ordem das seções, cores sem `/painel tema` e o relógio, que na extensão do VS Code cai para `🕒 HH:MM` em texto.
 2. Se o usuário quiser os jogos novos de novo: não reaplicar o stash direto. Partir da `main`, trazer **um jogo por vez** (cada um commitado e testado ao vivo antes do próximo) e descobrir qual deu erro. Não oferecer Pong, Frogger nem Flappy sem ele puxar.
 3. Extras já pensados e fora do básico do Sokoban: contador de movimentos, desfazer (`u`/`z`).
 4. Itens menores em "A validar ao vivo".
@@ -42,7 +43,15 @@ Versões:
 - Não existe ícone de Delphi na Nerd Font: `.pas/.dfm` usam o de código (`f121`) em rosa.
 - Base do Explorer (v0.2.0): painel id `explorer`, só abre por `/explorer`; lê pastas com `$.fs.list` só quando abertas e relê depois de Edit/Write/MultiEdit/NotebookEdit/Bash; clicar em arquivo copia o caminho relativo (`$.ui.copy`); hotkeys `r` (atualizar) e `c` (recolher); limite de 500 linhas; oculta só `.git`. Sem argumento, `$.fs.list()` chega ao hook como o caminho absoluto do diretório de trabalho.
 
-## v0.8.0 descartada (jogos novos e Sokoban maior)
+## Relógio e calendário (v0.8.0)
+
+- **Ordem do painel**: projeto · branch · modelo · Atalhos · Sessão · Contexto · Limites · Tarefas · Subagentes · Git · MCP · **relógio** · **Calendário**. Relógio e calendário ficam no **fim** (a pedido: "pode ser na parte inferior").
+- **Relógio** = `Client({ key: 'relogio', module: './clock.js', height: 3 })`, módulo `hooks/clock.js` (sem `$`, usa `Date` local e `surface.every(1000)`). Dígitos 3x5 em **meio bloco** (`▀▄█`), 5 linhas de pixel viram 3 de texto: a versão de 5 linhas "esticava na vertical". Segundos rosa, `HH:MM` roxo, dois-pontos piscam. Com menos de 27 colunas some os segundos. Sem `Client` (surface `vscode`) ou com `ui.fault` do painel: `🕒 HH:MM` em texto, pelo ticker de 15 s. A data por extenso foi **removida** para ganhar uma linha.
+- **Calendário** no `register.js` (`drawCalendar`, `monthGrid`): semana começa no domingo, hoje em negrito+invertido rosa, domingos laranja. Título `Calendário ▾ ‹ mês ano › [hoje]` numa linha só; `‹ ›` e `hoje` mexem em `calendarOffset` (não persiste); a seta grava `sections.calendar` (padrão aberto).
+- **Altura**: não dá para fazer linha em branco mais baixa (a grade do terminal é de linhas inteiras). Em vez disso, com os espaços entre seções de volta, juntei linhas: Sessão+custo, tokens+`▸ composição`, não rastreados na linha do git, título do calendário com o mês. Se rolar a barra, os Atalhos podem virar uma linha só.
+- Testes: `relógio`, `relógio sem Client`, `calendário` (navegação) e `calendário recolhe`; o de ordem agora checa relógio/calendário depois do Git.
+
+## v0.8.0 antiga descartada (jogos novos e Sokoban maior)
 
 - **O que era**: Space Invaders, Breakout, 2048, Termo e Campo Minado (ids `invaders`, `breakout`, `g2048`, `termo`, `mines`; menu `1-9`) e Sokoban com casas de 4x2 e fases 11-15 (15 no total). Mexia em `hooks/games.js`, `register.js`, `plugin.json` e nos testes (+1138 linhas).
 - **Por que saiu**: os jogos novos deram erro; o usuário mandou descartar. Não registrei qual erro nem em qual jogo, então não se sabe se o problema era um jogo só ou o motor compartilhado (células com fundo, `RULES.pointer`, `keyName` cru).
@@ -126,7 +135,7 @@ Ao terminar: `claude plugin marketplace update asa-right-panel`, `claude plugin 
 
 ## Git e instalação
 
-- Tudo (0.7.0 + este handoff) foi integrado na `main` por fast-forward; as branches `feature/painel-principal` e `feature/mais-jogos` apontam para commits que já estão na `main` e podem ser apagadas. Tag/Release mais recente: ver `git describe --tags` (a Release da 0.7.0 é criada junto com este ajuste). Repo privado: https://github.com/adrianosantostreina/claude-code-right-panel.
+- A 0.7.0 e o handoff dela foram integrados na `main` por fast-forward; as branches `feature/painel-principal` e `feature/mais-jogos` apontam para commits que já estão na `main` e podem ser apagadas. Tag/Release mais recente: ver `git describe --tags` (a Release da 0.7.0 é criada junto com este ajuste). Repo privado: https://github.com/adrianosantostreina/claude-code-right-panel.
 - `docs/prints/` (screenshot do usuário) segue sem commit, de propósito.
-- Plugin **instalado no escopo user** pelo marketplace local `asa-right-panel` (aponta para esta pasta, então segue a branch em que ela estiver), habilitado, versão **0.7.0**. Trocar de branch muda o código que o plugin instalado carrega; reinstalar ao trocar.
+- Plugin **instalado no escopo user** pelo marketplace local `asa-right-panel` (aponta para esta pasta, então segue a branch em que ela estiver), habilitado, versão **0.8.0**. Trocar de branch muda o código que o plugin instalado carrega; reinstalar ao trocar.
 - Testar uma versão nova sem mexer na instalada: abrir um terminal (no Orca, uma aba de terminal comum) na pasta do projeto e rodar `claude plugin disable right-panel@asa-right-panel` e `claude --plugin-dir ./right-panel`; ao terminar, `claude plugin enable right-panel@asa-right-panel`.
