@@ -7,11 +7,11 @@ Versões:
 - **v0.4.0 — fliperama (`/game`)**: Tetris, Snake e Pac-Man. Publicada como Release `v0.4.0` (primeira tag do repo).
 - **v0.5.0 — Explorer com ícones coloridos (`/explorer`)**: absorvida pela 0.6.x, nunca publicada sozinha.
 - **v0.6.0 — Sokoban no fliperama**: 4º jogo, 10 fases, o básico (sem contador de movimentos e sem desfazer, a pedido).
-- **v0.6.1 — controles do fliperama por WASD**: commitada, enviada ao GitHub e instalada no escopo user. O usuário testou ao vivo e confirmou: "funcionou tudo". **Ainda não há Release `v0.6.x`**: a última é `v0.4.0`.
+- **v0.6.1 — controles do fliperama por WASD**: commitada, enviada ao GitHub e instalada no escopo user. O usuário testou ao vivo e confirmou: "funcionou tudo". Publicada como Release `v0.6.1` (cobre Explorer + Sokoban + WASD desde a `v0.4.0`).
 
 ## Próximo passo concreto
 
-1. Quando o usuário quiser, `/asa:update-github`. **Perguntar a versão do Release** (o comando exige). Como a 0.5.0 e a 0.6.x nunca foram publicadas, a próxima cobre Explorer + Sokoban + WASD; sugestão `v0.6.1`. **Ainda sem resposta do usuário.**
+1. Nada pendente de publicação. Próximas ideias só se o usuário pedir.
 2. Extras já pensados e fora do básico do Sokoban: contador de movimentos, desfazer (`u`/`z`).
 3. Itens menores em "A validar ao vivo".
 
@@ -112,6 +112,6 @@ Ao terminar: `claude plugin marketplace update asa-right-panel`, `claude plugin 
 
 ## Git e instalação
 
-- Branch `main`. Tag/Release: `v0.4.0` (a mais recente). Repo privado: https://github.com/adrianosantostreina/claude-code-right-panel.
+- Branch `main`. Tag/Release: `v0.6.1` (a mais recente). Repo privado: https://github.com/adrianosantostreina/claude-code-right-panel.
 - Tudo da 0.6.1 está commitado e enviado. `docs/prints/` (screenshot do usuário) segue sem commit, de propósito.
 - Plugin **instalado no escopo user** pelo marketplace local `asa-right-panel` (aponta para esta pasta), habilitado, versão **0.6.1**.
