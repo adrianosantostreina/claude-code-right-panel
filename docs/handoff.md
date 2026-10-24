@@ -9,11 +9,12 @@ Versões:
 - **v0.6.0 — Sokoban no fliperama**: 4º jogo, 10 fases, o básico (sem contador de movimentos e sem desfazer, a pedido).
 - **v0.6.1 — controles do fliperama por WASD**: commitada, enviada ao GitHub e instalada no escopo user. O usuário testou ao vivo e confirmou: "funcionou tudo". Publicada como Release `v0.6.1` (cobre Explorer + Sokoban + WASD desde a `v0.4.0`).
 - **v0.7.0 — layout novo do painel principal + cores por ambiente**: feita em `feature/painel-principal`, instalada no escopo user e **versão atual do plugin**. Entra na `main` e vira Release junto com este ajuste (a Release cobre tudo desde a `v0.6.1`). O usuário confirmou que o `auto` fica bom no Orca; o layout novo e a detecção automática ainda não foram vistos ao vivo (ele só havia testado o `/painel tema` da versão antiga).
-- **v0.8.0 — relógio digital + calendário no fim do painel**: feita na `main`, instalada e **versão atual**. O usuário viu ao vivo no Orca e aprovou ("ficou ótimo"). Veja a seção "Relógio e calendário (v0.8.0)".
+- **v0.8.0 — relógio digital + calendário no fim do painel**: commitada (`25ee6ef`) e enviada à `main`, instalada e **versão atual**. O usuário viu ao vivo no Orca e aprovou ("ficou ótimo"). **Release `v0.8.0` ainda NÃO criada**: o usuário pediu "commitar tudo e gerar um release"; propus a tag `v0.8.0` sobre `origin/main` e fiquei esperando o "ok" do `/asa:github-release` (a skill não deixa inferir a versão). Veja a seção "Relógio e calendário (v0.8.0)".
 - **Antiga proposta de v0.8.0 (mais 5 jogos + Sokoban maior): DESCARTADA** (2026-10-24). Os jogos novos deram erro e o usuário mandou descartar. O código ficou guardado só no `stash@{0}` ("mais-jogos: trabalho descartado"); **não está em nenhuma branch**. Veja a seção "v0.8.0 descartada".
 
 ## Próximo passo concreto
 
+0. Criar a tag/Release `v0.8.0` (`/asa:github-release v0.8.0`), se o usuário ainda quiser; a última tag é `v0.7.0`.
 1. Olhar o painel principal no **VS Code** (o Orca já foi visto ao vivo na 0.8.0): ordem das seções, cores sem `/painel tema` e o relógio, que na extensão do VS Code cai para `🕒 HH:MM` em texto.
 2. Se o usuário quiser os jogos novos de novo: não reaplicar o stash direto. Partir da `main`, trazer **um jogo por vez** (cada um commitado e testado ao vivo antes do próximo) e descobrir qual deu erro. Não oferecer Pong, Frogger nem Flappy sem ele puxar.
 3. Extras já pensados e fora do básico do Sokoban: contador de movimentos, desfazer (`u`/`z`).
@@ -48,6 +49,7 @@ Versões:
 - **Ordem do painel**: projeto · branch · modelo · Atalhos · Sessão · Contexto · Limites · Tarefas · Subagentes · Git · MCP · **relógio** · **Calendário**. Relógio e calendário ficam no **fim** (a pedido: "pode ser na parte inferior").
 - **Relógio** = `Client({ key: 'relogio', module: './clock.js', height: 3 })`, módulo `hooks/clock.js` (sem `$`, usa `Date` local e `surface.every(1000)`). Dígitos 3x5 em **meio bloco** (`▀▄█`), 5 linhas de pixel viram 3 de texto: a versão de 5 linhas "esticava na vertical". Segundos rosa, `HH:MM` roxo, dois-pontos piscam. Com menos de 27 colunas some os segundos. Sem `Client` (surface `vscode`) ou com `ui.fault` do painel: `🕒 HH:MM` em texto, pelo ticker de 15 s. A data por extenso foi **removida** para ganhar uma linha.
 - **Calendário** no `register.js` (`drawCalendar`, `monthGrid`): semana começa no domingo, hoje em negrito+invertido rosa, domingos laranja. Título `Calendário ▾ ‹ mês ano › [hoje]` numa linha só; `‹ ›` e `hoje` mexem em `calendarOffset` (não persiste); a seta grava `sections.calendar` (padrão aberto).
+- **Recusado pelo usuário**: tirar todas as linhas em branco entre as seções ("muito apertado agora"); ele quer os espaços de volta e prefere que se economize juntando linhas de conteúdo. Pediu também dígitos "mais baixos" (meio bloco) e depois relógio/calendário embaixo, não no topo.
 - **Altura**: não dá para fazer linha em branco mais baixa (a grade do terminal é de linhas inteiras). Em vez disso, com os espaços entre seções de volta, juntei linhas: Sessão+custo, tokens+`▸ composição`, não rastreados na linha do git, título do calendário com o mês. Se rolar a barra, os Atalhos podem virar uma linha só.
 - Testes: `relógio`, `relógio sem Client`, `calendário` (navegação) e `calendário recolhe`; o de ordem agora checa relógio/calendário depois do Git.
 
