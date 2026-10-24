@@ -8,13 +8,13 @@ Versões:
 - **v0.5.0 — Explorer com ícones coloridos (`/explorer`)**: absorvida pela 0.6.x, nunca publicada sozinha.
 - **v0.6.0 — Sokoban no fliperama**: 4º jogo, 10 fases, o básico (sem contador de movimentos e sem desfazer, a pedido).
 - **v0.6.1 — controles do fliperama por WASD**: commitada, enviada ao GitHub e instalada no escopo user. O usuário testou ao vivo e confirmou: "funcionou tudo". Publicada como Release `v0.6.1` (cobre Explorer + Sokoban + WASD desde a `v0.4.0`).
-- **v0.7.0 — layout novo do painel principal + cores por ambiente**: feita na branch `feature/painel-principal`, commitada, **instalada no escopo user**, **não enviada ao GitHub e sem Release**. O usuário confirmou que o `auto` fica bom no Orca; o layout novo e a detecção automática ainda não foram vistos ao vivo (ele só havia testado o `/painel tema` da versão antiga).
-- **v0.8.0 — mais 5 jogos + Sokoban maior** (pedido: "Space Invaders? ... o Sokoban ficou pequeno ... aceito todas as sugestões"): Space Invaders, Breakout, 2048, Termo e Campo Minado; Sokoban com casas de 4x2 e fases 11-15 maiores. Feita na branch `feature/mais-jogos` (criada a partir de `feature/painel-principal`), **instalada no escopo user, não commitada, sem push, sem Release**. 32 testes passam; **nada visto ao vivo ainda**.
+- **v0.7.0 — layout novo do painel principal + cores por ambiente**: feita em `feature/painel-principal`, instalada no escopo user e **versão atual do plugin**. Entra na `main` e vira Release junto com este ajuste (a Release cobre tudo desde a `v0.6.1`). O usuário confirmou que o `auto` fica bom no Orca; o layout novo e a detecção automática ainda não foram vistos ao vivo (ele só havia testado o `/painel tema` da versão antiga).
+- **v0.8.0 — mais 5 jogos + Sokoban maior: DESCARTADA** (2026-10-24). Os jogos novos deram erro e o usuário mandou descartar. O código ficou guardado só no `stash@{0}` ("mais-jogos: trabalho descartado"); **não está em nenhuma branch**. Veja a seção "v0.8.0 descartada".
 
 ## Próximo passo concreto
 
-1. Reiniciar o Claude Code (a 0.8.0 já está instalada) e jogar os 5 jogos novos em `/game` (lista "A validar ao vivo" abaixo) e olhar o painel principal no **Orca** e no **VS Code** (ordem, grade de atalhos, setas, cores sem `/painel tema`; a 0.7.0 também nunca foi vista ao vivo).
-2. Se ficar bom: commitar a 0.8.0 em `feature/mais-jogos`, merge das duas branches na `main`, push e `/asa:update-github` (perguntar a versão; sugestão `v0.8.0`, que cobre a 0.7.0). O commit de handoff `2ba07d3` da `main` também ainda não foi enviado.
+1. Reiniciar o Claude Code e olhar o painel principal no **Orca** e no **VS Code** (ordem, grade de atalhos, setas, cores sem `/painel tema`; a 0.7.0 nunca foi vista ao vivo).
+2. Se o usuário quiser os jogos novos de novo: não reaplicar o stash direto. Partir da `main`, trazer **um jogo por vez** (cada um commitado e testado ao vivo antes do próximo) e descobrir qual deu erro. Não oferecer Pong, Frogger nem Flappy sem ele puxar.
 3. Extras já pensados e fora do básico do Sokoban: contador de movimentos, desfazer (`u`/`z`).
 4. Itens menores em "A validar ao vivo".
 
@@ -32,7 +32,7 @@ Versões:
 - **Instalar**: o usuário pediu "Instale o plugin aqui vc mesmo". Ao terminar uma versão, instalar sem perguntar (`claude plugin marketplace update asa-right-panel` e `claude plugin update right-panel@asa-right-panel`). `update` só enxerga a versão nova se o `plugin.json` foi bumpado.
 - **Commit, push e Release**: só quando o usuário pede (ele usou `/asa:update-github`). A 0.4.0 foi commitada depois de "ok, comita e segue".
 - Cada versão nova mexe em `plugin.json` (version e description), no handoff e nos testes.
-- **Escopo da 0.8.0 (2026-10-24)**: o usuário perguntou "que outros joguinhos? Space Invaders?" e que o campo do Sokoban "ficou pequeno". Ofereci Invaders, Breakout, 2048, Termo e Campo Minado mais o zoom/fases maiores do Sokoban e ele respondeu **"Faz, aceito todas as sugestões"**: por isso saiu tudo de uma vez. Ele não pediu Pong, Frogger nem Flappy; não oferecer de novo sem ele puxar. As escolhas de desenho (aceitar qualquer 5 letras no Termo, 1 tiro por vez no Invaders, `tab`/`0` para sair do Termo, zoom 4x2 no Sokoban) foram minhas, ele não viu nenhuma ao vivo ainda.
+- **Escopo da 0.8.0 (2026-10-24), descartada**: o usuário perguntou "que outros joguinhos? Space Invaders?" e que o campo do Sokoban "ficou pequeno". Ofereci Invaders, Breakout, 2048, Termo e Campo Minado mais o zoom/fases maiores do Sokoban e ele respondeu **"Faz, aceito todas as sugestões"**: por isso saiu tudo de uma vez. Depois os jogos novos deram erro e ele mandou descartar. Lição: entregar tudo de uma vez sem ver ao vivo foi o que impediu isolar o erro. Ele não pediu Pong, Frogger nem Flappy; não oferecer de novo sem ele puxar.
 
 ## Explorer com ícones (v0.5.0)
 
@@ -42,18 +42,12 @@ Versões:
 - Não existe ícone de Delphi na Nerd Font: `.pas/.dfm` usam o de código (`f121`) em rosa.
 - Base do Explorer (v0.2.0): painel id `explorer`, só abre por `/explorer`; lê pastas com `$.fs.list` só quando abertas e relê depois de Edit/Write/MultiEdit/NotebookEdit/Bash; clicar em arquivo copia o caminho relativo (`$.ui.copy`); hotkeys `r` (atualizar) e `c` (recolher); limite de 500 linhas; oculta só `.git`. Sem argumento, `$.fs.list()` chega ao hook como o caminho absoluto do diretório de trabalho.
 
-## Jogos novos e Sokoban maior (v0.8.0)
+## v0.8.0 descartada (jogos novos e Sokoban maior)
 
-Todos em `hooks/games.js`; ids em `GAME_IDS`/`gameHighs` do `register.js` (`invaders`, `breakout`, `g2048`, `termo`, `mines`). Menu: `1-9`, nome com `padEnd(15)`.
-
-- **Motor**: células agora `[texto, cor, negrito, fundo]` (o `rowText` aplica `backgroundColor`); `RULES[id]` ganhou `status(game)`, `pointer(game, x, y, button)` (mouse dentro do jogo; `y` já descontado de `PLAY_FIRST_ROW = 2`), `typing`, `noAutoPause`, `winText`/`loseText`. `keyName(event, raw)` mantém letras cruas para o Termo (senão w/a/s/d viram setas).
-- **Space Invaders** (`5`): campo 20x20 casas de 2 colunas, 7x4 invasores (1 casa, espaçados de 2), 4 escudos de 3x2 com 4 de vida, 3 vidas, nível sobe a cada onda limpa (+100). `a d` movem, espaço atira (um tiro por vez). Acerta o invasor só se a coluna bater exatamente (parity); tiro que sobe por uma coluna de escudo bate no escudo.
-- **Breakout** (`6`): 10x5 tijolos (cada um com 2 casas), raquete de 5 que anda 2 casas por tecla, bola em ponto flutuante com passos de <=0,4 casa; ângulo da volta depende de onde bate na raquete. Espaço lança. Simulação com raquete perfeita nunca perdeu a bola do campo.
-- **2048** (`7`): 4x4, peças de 7x3 com fundo colorido, sem pausa automática. Não acaba ao chegar em 2048 (mostra "CHEGOU NO 2048!").
-- **Termo** (`8`): 303 palavras de 5 letras **sem acento** em `TERMO_WORDS`; qualquer 5 letras é aceita como palpite (não valida dicionário). Pontos `(7 - tentativas) * 100` por palavra; segue para outra palavra com espaço; erra a sexta e o jogo acaba mostrando a palavra. **Todas as letras são digitação**: sair é `tab` ou `0` (não `q`/`p`). Se `tab` não chegar ao jogo (o Claude Code pode usar), o `0` cobre.
-- **Campo Minado** (`9`): 12x12, 18 minas (sorteadas no primeiro toque, longe dele), casa de 3 colunas. Clique esquerdo abre (em número aberto com bandeiras certas, abre os vizinhos), clique direito marca; teclado: `wasd` move o cursor, espaço abre, `f` marca. **Clique direito depende de o terminal reportar `button: 'right'`**; sem isso, o `f` resolve.
-- **Sokoban**: casas de **4x2** (parede `▒▒▒▒`, caixa `█▀▀█/█▄▄█`, jogador `▄▄/▐██▌`, destino `╭╮/╰╯`), fases 11-15 de 8x8 até 10x10 (14 a 24 empurrões), geradas por puxadas reversas e conferidas com solver. **Total: 15 fases**; os testes esperam `fase N/15`. Limite do painel: 10x10 casas (40 colunas, 20 linhas).
-- **Verificação feita**: teste de fumaça com surface falso (todas as partidas com teclas aleatórias, largura <=44 e altura <=28), checagem de lógica (fusão do 2048, letras repetidas do Termo, primeira jogada do Campo Minado, tiro do Invaders, bola do Breakout) e solver nas 15 fases. Os scripts ficaram no scratchpad da sessão (descartáveis); para fase nova de Sokoban, gerar por puxadas reversas e conferir com BFS por empurrões.
+- **O que era**: Space Invaders, Breakout, 2048, Termo e Campo Minado (ids `invaders`, `breakout`, `g2048`, `termo`, `mines`; menu `1-9`) e Sokoban com casas de 4x2 e fases 11-15 (15 no total). Mexia em `hooks/games.js`, `register.js`, `plugin.json` e nos testes (+1138 linhas).
+- **Por que saiu**: os jogos novos deram erro; o usuário mandou descartar. Não registrei qual erro nem em qual jogo, então não se sabe se o problema era um jogo só ou o motor compartilhado (células com fundo, `RULES.pointer`, `keyName` cru).
+- **Onde está**: só em `git stash show -p stash@{0}`. Pode servir de referência, mas a `main` (0.7.0) é a base. Se for apagar o stash (`git stash drop`), perde o código de vez.
+- **Se retomar**: um jogo por vez, testado ao vivo antes do próximo; reportar o erro exato (`claude --debug-file ./mod-debug.log --plugin-dir ./right-panel`).
 
 ## Fliperama (v0.4.0)
 
@@ -95,7 +89,6 @@ O usuário deixou de fora: **PR/CI via `gh`**, **último build Delphi** (`build_
 ## A validar ao vivo
 
 - **Surface do usuário**: o jogo só roda na surface `terminal`. Se ao rodar `/game` aparecer "O fliperama só roda no Claude Code do terminal", o usuário está na extensão do VS Code (surface `vscode`, sem `Client`), não no terminal integrado. Nesse caso o fliperama não tem como funcionar e o caminho é rodar o Claude Code no terminal.
-- v0.8.0: tamanho do Sokoban no Orca/VS Code, cor do fundo (hexadecimais de 2048, Termo e Campo Minado), `tab` chegando no Termo, clique direito no Campo Minado, velocidade do Invaders e do Breakout, vidas `♥` e `▲▲`/`◢◣` renderizando na fonte do usuário.
 - Fliperama: se `isFocused` muda mesmo ao apertar Esc (pausa automática), se a velocidade dos três jogos está boa, se Pac-Man e parede se distinguem só pela cor.
 - Explorer: glifos Nerd Font certos (nenhum quadrado), cores, hover, `/explorer icones emoji|simples`.
 - Painel principal: fundo Dracula preenchendo tudo, `flexWrap`/`columnGap` nas linhas de botões, `variant: 'secondary'`, `$.command.run` de `clear`/`compact` por botão, `$.agent.list` com subagentes reais.
@@ -133,7 +126,7 @@ Ao terminar: `claude plugin marketplace update asa-right-panel`, `claude plugin 
 
 ## Git e instalação
 
-- Branch de trabalho: `feature/mais-jogos` (a partir de `feature/painel-principal`, que tem a 0.7.0 commitada; a 0.8.0 está só no working tree). Antes dela: `feature/painel-principal` (a partir da `main`). A `main` está em `2ba07d3` (handoff da Release `v0.6.1`, **ainda não enviado**; `origin/main` está em `5770b72`). Tag/Release mais recente: `v0.6.1`. Repo privado: https://github.com/adrianosantostreina/claude-code-right-panel.
-- A 0.7.0 está commitada só na branch `feature/painel-principal`, **sem push**. `docs/prints/` (screenshot do usuário) segue sem commit, de propósito.
-- Plugin **instalado no escopo user** pelo marketplace local `asa-right-panel` (aponta para esta pasta, então segue a branch em que ela estiver), habilitado, versão **0.8.0**. Voltar para a `main` deixa a pasta com o código da 0.6.1 mas o `plugin.json` antigo; reinstalar ao trocar de branch.
+- Tudo (0.7.0 + este handoff) foi integrado na `main` por fast-forward; as branches `feature/painel-principal` e `feature/mais-jogos` apontam para commits que já estão na `main` e podem ser apagadas. Tag/Release mais recente: ver `git describe --tags` (a Release da 0.7.0 é criada junto com este ajuste). Repo privado: https://github.com/adrianosantostreina/claude-code-right-panel.
+- `docs/prints/` (screenshot do usuário) segue sem commit, de propósito.
+- Plugin **instalado no escopo user** pelo marketplace local `asa-right-panel` (aponta para esta pasta, então segue a branch em que ela estiver), habilitado, versão **0.7.0**. Trocar de branch muda o código que o plugin instalado carrega; reinstalar ao trocar.
 - Testar uma versão nova sem mexer na instalada: abrir um terminal (no Orca, uma aba de terminal comum) na pasta do projeto e rodar `claude plugin disable right-panel@asa-right-panel` e `claude --plugin-dir ./right-panel`; ao terminar, `claude plugin enable right-panel@asa-right-panel`.
