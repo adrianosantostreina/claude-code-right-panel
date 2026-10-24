@@ -1,20 +1,26 @@
 # Handoff — Right Panel
 
-## Onde paramos (2026-10-19)
+## Onde paramos (2026-10-23)
 
-Duas versões novas nesta sessão:
+Versões:
 
-- **v0.4.0 — fliperama (`/game`)**: Tetris, Snake e Pac-Man. Commitada (`3bcab73`), enviada ao GitHub e publicada como Release `v0.4.0` (primeira tag do repo).
-- **v0.5.0 — Explorer com ícones coloridos (`/explorer`)**: escrita, validada, 20 testes passando e **instalada no escopo user, mas ainda NÃO commitada nem publicada**. Arquivos pendentes de commit: `right-panel/hooks/register.js`, `right-panel/tests/right-panel.test.ts` e `right-panel/.claude-plugin/plugin.json` (só o handoff foi commitado).
-
-O usuário rodou `/painel`, `/game` e `/explorer` durante a sessão, mas **não deu retorno de como ficou na tela**. Nada do que depende de ver o desenho (glifos, cores, jogo) foi confirmado ao vivo.
+- **v0.4.0 — fliperama (`/game`)**: Tetris, Snake e Pac-Man. Publicada como Release `v0.4.0` (primeira tag do repo).
+- **v0.5.0 — Explorer com ícones coloridos (`/explorer`)**: absorvida pela 0.6.x, nunca publicada sozinha.
+- **v0.6.0 — Sokoban no fliperama**: 4º jogo, 10 fases, o básico (sem contador de movimentos e sem desfazer, a pedido).
+- **v0.6.1 — controles do fliperama por WASD**: commitada, enviada ao GitHub e instalada no escopo user. O usuário testou ao vivo e confirmou: "funcionou tudo". **Ainda não há Release `v0.6.x`**: a última é `v0.4.0`.
 
 ## Próximo passo concreto
 
-1. Reiniciar o Claude Code (a 0.5.0 já está instalada) e olhar `/explorer`: ícones certos, cores, hover roxo. Depois `/game`: clicar no painel e jogar os três.
-2. Se algo precisar de ajuste, sai como 0.5.1 (ícone errado = trocar o código em `ICON_SETS.nerd`).
-3. Quando o usuário aprovar: commitar a 0.5.0 e rodar `/asa:update-github`. **Perguntar a versão do Release** (o comando exige; na 0.4.0 o usuário aceitou a proposta `v0.4.0`). Já foi perguntado ao usuário se quer commit + push + Release `v0.5.0`; **sem resposta ainda**.
-4. Itens menores em "A validar ao vivo".
+1. Quando o usuário quiser, `/asa:update-github`. **Perguntar a versão do Release** (o comando exige). Como a 0.5.0 e a 0.6.x nunca foram publicadas, a próxima cobre Explorer + Sokoban + WASD; sugestão `v0.6.1`. **Ainda sem resposta do usuário.**
+2. Extras já pensados e fora do básico do Sokoban: contador de movimentos, desfazer (`u`/`z`).
+3. Itens menores em "A validar ao vivo".
+
+## O bug "o /game fecha o painel e a sessão" (resolvido na 0.6.1)
+
+- **Sintoma**: ao navegar no menu do fliperama (mouse ou setas), a sessão do Claude Code inteira "caía" e voltava sozinha só com o painel Sessão.
+- **Causa** (achada no log de `claude --debug-file`): a seta **←** com o prompt vazio é um atalho nativo do Claude Code que sai da sessão para a lista de sessões em segundo plano (`[PERF:bg-leftarrow-start]` → `[REPL:unmount]` → `bg-claim`). Não era o mod fechando nada. O `Client` só recebe teclas **depois de um clique nele**; sem o clique, a ← vai para o Claude Code. A doc diz que as setas são do painel e que jogos andam com `w a s d`.
+- **Correção**: menu e ajuda de todos os jogos mostram `w a s d`; as setas ainda funcionam com o jogo focado; o `Client` ocupa o painel todo (`width: '100%'`, `height: bodyRows`) para qualquer clique focar; o menu avisa em vermelho que sem o clique a ← sai da sessão.
+- **Como investigar o próximo bug parecido**: `claude plugin disable right-panel@asa-right-panel` e `claude --debug-file ./mod-debug.log --plugin-dir ./right-panel`, reproduzir e ler o fim do log. Não commitar o `mod-debug.log`.
 
 ## Decisões desta sessão (o que não está óbvio no código)
 
@@ -34,13 +40,21 @@ O usuário rodou `/painel`, `/game` e `/explorer` durante a sessão, mas **não 
 
 ## Fliperama (v0.4.0)
 
-- `/game` abre/fecha o pane `game` ("Fliperama", `focus: true`, `columns: 44`, `rows: 28`). Menu: ↑↓ escolhe, espaço/Enter joga, `1 2 3` atalhos, clique no nome também começa.
+- `/game` abre/fecha o pane `game` ("Fliperama", `focus: true`, `columns: 44`, `rows: 28`). Menu: `w`/`s` (ou ↑↓) escolhem, espaço/Enter joga, `1-4` atalhos, clique no nome também começa.
 - Jogos em `right-panel/hooks/games.js`, desenhados por `Client({ key: 'fliperama', module: './games.js' })`. Roda no thread de desenho **sem `$`**, com `surface.every` (tick de 40 ms), `surface.onKey` e `surface.onPointer`. O validador reconhece o módulo mesmo com `Client(...)` em chamada, sem JSX.
-- **O `Client` só recebe teclas depois de um clique na área dele** (não existe `$.ui.focus` para Client) e o Esc devolve o teclado ao prompt. O menu avisa. Para o jogo não seguir sozinho depois do Esc, o hook passa `focused` (o `isFocused` do Pane) e o Client pausa na transição true→false.
-- Teclas: Tetris ←→ move, ↑ gira (com empurrão na parede), ↓ desce, espaço solta, sombra, saco de 7. Snake: setas (fila de 3), espaço pausa. Pac-Man: setas, 4 fantasmas com alvos diferentes, energizante, túnel, 3 vidas, níveis. Em todos: `p` pausa, `q` volta ao menu, WASD também.
+- **O `Client` só recebe teclas depois de um clique na área dele (por isso ele ocupa o painel todo)** (não existe `$.ui.focus` para Client) e o Esc devolve o teclado ao prompt. O menu avisa. Para o jogo não seguir sozinho depois do Esc, o hook passa `focused` (o `isFocused` do Pane) e o Client pausa na transição true→false.
+- Teclas (WASD é o padrão mostrado; as setas equivalem): Tetris `a`/`d` move, `w` gira (com empurrão na parede), `s` desce, espaço solta, sombra, saco de 7. Snake: setas (fila de 3), espaço pausa. Pac-Man: setas, 4 fantasmas com alvos diferentes, energizante, túnel, 3 vidas, níveis. Em todos: `p` pausa, `q` volta ao menu, WASD também.
 - Recordes: no fim da partida o Client faz `surface.post({ type: 'score', game, score })`; o hook `ui.message` valida, grava em `$.store` (`gameHighs`) e responde `{ props }`.
 - Sem `Client` (surface `vscode` ou `mobile`) ou com `ui.fault`, o pane mostra uma mensagem em vez do jogo.
 - Desenho: célula de 2 colunas (`██`, `▓▓`, `▟▙` fantasma, `▐▌` comida). Pac-Man é `██` amarelo e parede `██` azul-acinzentado: só a cor diferencia.
+
+## Sokoban (v0.6.0)
+
+- 4º jogo em `hooks/games.js` (`GAMES`, `RULES.sokoban`, seção "Sokoban"). Menu agora aceita `1-4`. Pontuação: 100 por fase concluída; recorde em `gameHighs.sokoban` (`GAME_IDS` e o valor inicial de `gameHighs` no `register.js` ganharam `sokoban`).
+- Fases em `SOKOBAN_LEVELS` (notação clássica `# $ . * @ +`), das mais fáceis para as mais difíceis, **todas conferidas com um solver BFS** (de 1 a 48 movimentos, 1 a 4 caixas, no máximo 9x8). Fase nova: conferir solvabilidade antes de entrar; as fases são originais, não copiadas de coleções publicadas.
+- Sem relógio (`tick` devolve false): só anda quando aperta tecla. Setas/WASD movem e empurram uma caixa por vez; `r` reinicia a fase; ao fechar a fase aparece "FASE CONCLUÍDA" e espaço/Enter segue; zerar as 10 fases vira `over` com `won` ("TODAS AS FASES!").
+- **Sem derrota**: o jeito de encerrar é `q`. Por isso `RULES.sokoban.saveOnQuit` faz o `q` gravar a pontuação das fases já feitas (os outros jogos continuam descartando ao sair).
+- Desenho: parede `▒▒` apagada, jogador `██` ciano, caixa `▓▓` laranja (verde no destino), destino ` ○` verde.
 
 ## Painel principal (v0.3.x)
 
@@ -69,6 +83,8 @@ O usuário deixou de fora: **PR/CI via `gh`**, **último build Delphi** (`build_
 
 ## Armadilhas
 
+- **Não confiar nas setas para o fliperama**: sem o foco no `Client`, a ← sai da sessão (atalho nativo). Controle sempre por `w a s d`.
+- `Client(...)` só aceita **objeto literal** nas props (`Client({ key, module, props, width, height })`); montar as props em outra função faz o módulo não carregar.
 - **`hover` num Button exige uma `Box` com `key` em volta**; sem isso o engine recusa a árvore inteira e desenha o painel dele (`ui.render (Pane) refused: Button "..." hover has no Box with a key around it`). Foi pego pelos testes da 0.5.0.
 - **O texto de um Button não aceita cor** (só `dimColor` e `hover`). Para colorir, use um `Text` ao lado.
 - `Box` não é clicável (sem `onPress`); só `Button`. Um Button aceita no máximo uma string como label ou filho.
@@ -96,6 +112,6 @@ Ao terminar: `claude plugin marketplace update asa-right-panel`, `claude plugin 
 
 ## Git e instalação
 
-- Branch `main`, em dia com `origin/main` em `3bcab73` (0 à frente, 0 atrás) no início deste handoff. Tag/Release: `v0.4.0`. Repo privado: https://github.com/adrianosantostreina/claude-code-right-panel.
-- **Mudanças não commitadas**: os 3 arquivos da v0.5.0 listados no topo. O commit deste handoff fica local; **não dar push sem o usuário pedir**.
-- Plugin **instalado no escopo user** pelo marketplace local `asa-right-panel` (aponta para esta pasta), habilitado, versão **0.5.0** (instalada antes do commit).
+- Branch `main`. Tag/Release: `v0.4.0` (a mais recente). Repo privado: https://github.com/adrianosantostreina/claude-code-right-panel.
+- Tudo da 0.6.1 está commitado e enviado. `docs/prints/` (screenshot do usuário) segue sem commit, de propósito.
+- Plugin **instalado no escopo user** pelo marketplace local `asa-right-panel` (aponta para esta pasta), habilitado, versão **0.6.1**.

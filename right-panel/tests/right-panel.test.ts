@@ -170,6 +170,44 @@ for (const surface of ['terminal', 'desktop'] as const) {
   })
 }
 
+test('Explorer: ícones Nerd Font coloridos por tipo, com o nome ainda clicável', async ($, on) => {
+  stubSession(on, [])
+  stubFs(on)
+  on('ui.panes', () => ({ value: [] }))
+  await start($)
+  await $.command.run({ command: 'explorer', args: '' })
+
+  const ui = await $.ui.mount({ ...EXPLORER_PANE, surface: 'terminal' })
+  await ui.press({ key: 'dir:src' })
+  const tree = JSON.stringify(await ui.drawn())
+  // pasta aberta em roxo, README.md (markdown) em verde, app.ts (typescript) em ciano
+  expect(tree).toMatch(/#bd93f9[\s\S]{0,120}/)
+  expect(tree).toMatch(/#50fa7b[\s\S]{0,120}/)
+  expect(tree).toMatch(/#8be9fd[\s\S]{0,120}/)
+  expect(await ui.find({ type: 'Button', key: 'file:src/app.ts' })).toBeDefined()
+})
+
+test('/explorer icones troca o conjunto, grava e lista as opções', async ($, on) => {
+  const saved = new Map<string, unknown>()
+  stubSession(on, [], saved)
+  stubFs(on)
+  on('ui.panes', () => ({ value: [] }))
+  await start($)
+  await $.command.run({ command: 'explorer', args: '' })
+
+  const ok = await $.command.run({ command: 'explorer', args: 'icones emoji' })
+  expect(ok.text).toBe('Ícones do Explorer: emoji')
+  expect(saved.get('explorerIcons')).toBe('emoji')
+  const ui = await $.ui.mount({ ...EXPLORER_PANE, surface: 'terminal' })
+  expect(JSON.stringify(await ui.drawn())).toContain('\u{1F4DD}') // README.md
+
+  await $.command.run({ command: 'explorer', args: 'icones simples' })
+  expect(JSON.stringify(await ui.drawn())).toContain('▸')
+
+  const bad = await $.command.run({ command: 'explorer', args: 'icones xpto' })
+  expect(bad.text).toMatch(/^Ícones: nerd, simples, emoji/)
+})
+
 test('mostra sessão, composição do contexto, reset dos limites e git', async ($, on) => {
   stubSession(on, [], undefined, {
     'session.usage': ($, e) => ({
@@ -335,13 +373,42 @@ test('recorde que o jogo manda é gravado e aparece no menu', async ($, on) => {
   const ui = await $.ui.mount({ ...GAME_PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /Tetris\s+recorde 100/, ...IN_GAME })).toBeDefined()
   await ui.post({ type: 'score', game: 'snake', score: 70 }, IN_GAME)
-  expect(saved.get('gameHighs')).toEqual({ tetris: 100, snake: 70, pacman: 0 })
+  expect(saved.get('gameHighs')).toEqual({ tetris: 100, snake: 70, pacman: 0, sokoban: 0 })
   expect(await ui.find({ type: 'Text', text: /Snake\s+recorde 70/, ...IN_GAME })).toBeDefined()
 
   // Pontuação menor ou dado inválido não mexem no recorde.
   await ui.post({ type: 'score', game: 'snake', score: 10 }, IN_GAME)
   await ui.post({ type: 'score', game: 'xadrez', score: 999 }, IN_GAME)
-  expect(saved.get('gameHighs')).toEqual({ tetris: 100, snake: 70, pacman: 0 })
+  expect(saved.get('gameHighs')).toEqual({ tetris: 100, snake: 70, pacman: 0, sokoban: 0 })
+})
+
+test('Sokoban: empurra a caixa, passa de fase, reinicia e grava as fases feitas ao sair', async ($, on) => {
+  const saved = new Map<string, unknown>()
+  stubSession(on, [], saved)
+  await start($)
+
+  const ui = await $.ui.mount({ ...GAME_PANE, surface: 'terminal' })
+  await ui.key({ key: '4', in: 'fliperama' })
+  expect(await ui.find({ type: 'Text', text: /^Sokoban  pontos 0/, ...IN_GAME })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /fase 1\/10/, ...IN_GAME })).toBeDefined()
+
+  // Fase 1: um empurrão para a esquerda põe a caixa no destino.
+  await ui.key({ key: 'left', in: 'fliperama' })
+  expect(await ui.find({ type: 'Text', text: /FASE CONCLUÍDA/, ...IN_GAME })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^Sokoban  pontos 100/, ...IN_GAME })).toBeDefined()
+  await ui.key({ key: ' ', in: 'fliperama' })
+  expect(await ui.find({ type: 'Text', text: /fase 2\/10/, ...IN_GAME })).toBeDefined()
+
+  // Fase 2: o jogador anda, a parede segura e o r volta ao começo da fase.
+  await ui.key({ key: 'up', in: 'fliperama' })
+  await ui.key({ key: 'up', in: 'fliperama' })
+  await ui.key({ key: 'r', in: 'fliperama' })
+  expect(await ui.find({ type: 'Text', text: /fase 2\/10/, ...IN_GAME })).toBeDefined()
+
+  // Sair com fases feitas manda a pontuação para o recorde.
+  await ui.key({ key: 'q', in: 'fliperama' })
+  expect(saved.get('gameHighs')).toEqual({ tetris: 0, snake: 0, pacman: 0, sokoban: 100 })
+  expect(await ui.find({ type: 'Text', text: /Sokoban\s+recorde 100/, ...IN_GAME })).toBeDefined()
 })
 
 test('no VS Code, sem Client, o fliperama explica em vez de quebrar', async ($, on) => {

@@ -1,4 +1,4 @@
-// Fliperama do Right Panel (/game): Tetris, Snake e Pac-Man.
+// Fliperama do Right Panel (/game): Tetris, Snake, Pac-Man e Sokoban.
 //
 // Módulo de superfície de um Client: roda no thread de desenho do terminal,
 // sem $, com estado local, relógio próprio (surface.every) e teclado
@@ -26,6 +26,7 @@ const GAMES = [
   { id: 'tetris', name: 'Tetris', color: COLORS.cyan },
   { id: 'snake', name: 'Snake', color: COLORS.green },
   { id: 'pacman', name: 'Pac-Man', color: COLORS.yellow },
+  { id: 'sokoban', name: 'Sokoban', color: COLORS.orange },
 ]
 
 // Linha do menu onde aparece o primeiro jogo (para o clique do mouse).
@@ -83,13 +84,18 @@ function onKey(world, key, surface) {
     if (key === 'up') world.pick = (world.pick + GAMES.length - 1) % GAMES.length
     else if (key === 'down') world.pick = (world.pick + 1) % GAMES.length
     else if (key === 'space' || key === 'enter') startGame(world, world.pick)
-    else if (key === '1' || key === '2' || key === '3') startGame(world, Number(key) - 1)
+    else if (/^[1-9]$/.test(key) && Number(key) <= GAMES.length) startGame(world, Number(key) - 1)
     else return false
     return true
   }
 
   const game = world.game
   if (key === 'q') {
+    // Sokoban não tem derrota: sair é a forma de encerrar, então conta as fases já feitas.
+    if (RULES[game.id].saveOnQuit && !game.over && game.score > 0) {
+      game.over = true
+      finish(world, surface)
+    }
     world.screen = 'menu'
     world.game = null
     return true
@@ -710,6 +716,186 @@ function pacmanRows(game) {
   return grid
 }
 
+// ---------------------------------------------------------------- Sokoban
+
+// # parede · $ caixa · . destino · * caixa já no destino · @ jogador · + jogador no destino
+// Das mais fáceis para as mais difíceis; todas conferidas com um solver.
+const SOKOBAN_LEVELS = [
+  [
+    '#######',
+    '#     #',
+    '# .$@ #',
+    '#     #',
+    '#######',
+  ],
+  [
+    '  ####',
+    '###  ####',
+    '#  $   .#',
+    '# @$  # #',
+    '###  ## #',
+    '  #. #  #',
+    '  ######',
+  ],
+  [
+    ' ######',
+    ' #    #',
+    ' # $$ #',
+    ' #@ ..#',
+    ' ######',
+  ],
+  [
+    '  ####',
+    '###  #',
+    '#.@$ #',
+    '#.$  #',
+    '#.$ ##',
+    '#   #',
+    '#####',
+  ],
+  [
+    '######',
+    '#    #',
+    '# ## #',
+    '# #. #',
+    '# $@ #',
+    '# $. #',
+    '#    #',
+    '######',
+  ],
+  [
+    '#######',
+    '#.    #',
+    '#.$ # #',
+    '#.$$@ #',
+    '#   # #',
+    '#######',
+  ],
+  [
+    '########',
+    '#  .   #',
+    '# $#$ .#',
+    '#  @   #',
+    '#.$  $ #',
+    '#   .  #',
+    '########',
+  ],
+  [
+    ' ####',
+    '##  ####',
+    '#  $   #',
+    '# .#.# #',
+    '#  $@$ #',
+    '##  . ##',
+    ' ######',
+  ],
+  [
+    '#######',
+    '#.    #',
+    '#.# # #',
+    '#  $$@#',
+    '#   # #',
+    '#######',
+  ],
+  [
+    '  ######',
+    '  #    #',
+    '### $$ #',
+    '#.  #  #',
+    '#.@$ $ #',
+    '#..  ###',
+    '######',
+  ],
+]
+
+const LEVEL_POINTS = 100
+
+function newSokoban() {
+  const game = { id: 'sokoban', score: 0, over: false, paused: false, level: 0, cleared: false, won: false }
+  loadLevel(game)
+  return game
+}
+
+function loadLevel(game) {
+  const rows = SOKOBAN_LEVELS[game.level]
+  game.cleared = false
+  game.walls = []
+  game.goals = []
+  game.boxes = []
+  game.player = { x: 0, y: 0 }
+  rows.forEach((row, y) => {
+    game.walls.push([...row].map((c) => c === '#'))
+    game.goals.push([...row].map((c) => c === '.' || c === '*' || c === '+'))
+    ;[...row].forEach((c, x) => {
+      if (c === '$' || c === '*') game.boxes.push({ x, y })
+      if (c === '@' || c === '+') game.player = { x, y }
+    })
+  })
+}
+
+function isBlocked(game, x, y) {
+  const row = game.walls[y]
+  return !row || row[x] !== false
+}
+
+function boxAt(game, x, y) {
+  return game.boxes.find((b) => b.x === x && b.y === y)
+}
+
+function sokobanTick() {
+  return false // sem relógio: o jogo só anda quando você aperta uma tecla
+}
+
+function sokobanKey(game, key) {
+  if (game.cleared) {
+    if (key !== 'space' && key !== 'enter') return false
+    game.level++
+    loadLevel(game)
+    return true
+  }
+  if (key === 'r') {
+    loadLevel(game)
+    return true
+  }
+  const dir = DIRS[key]
+  if (!dir) return false
+  const [dx, dy] = dir
+  const x = game.player.x + dx
+  const y = game.player.y + dy
+  if (isBlocked(game, x, y)) return false
+  const box = boxAt(game, x, y)
+  if (box) {
+    // Só empurra uma caixa por vez, e não para dentro de parede ou de outra caixa.
+    if (isBlocked(game, x + dx, y + dy) || boxAt(game, x + dx, y + dy)) return false
+    box.x += dx
+    box.y += dy
+  }
+  game.player = { x, y }
+  if (game.boxes.every((b) => game.goals[b.y][b.x])) {
+    game.score += LEVEL_POINTS
+    if (game.level + 1 >= SOKOBAN_LEVELS.length) {
+      game.won = true
+      game.over = true
+    } else {
+      game.cleared = true
+    }
+  }
+  return true
+}
+
+function sokobanRows(game) {
+  return game.walls.map((row, y) =>
+    row.map((wall, x) => {
+      if (wall) return ['▒▒', COLORS.dim]
+      if (game.player.x === x && game.player.y === y) return ['██', COLORS.cyan]
+      const onGoal = game.goals[y][x]
+      if (boxAt(game, x, y)) return ['▓▓', onGoal ? COLORS.green : COLORS.orange]
+      if (onGoal) return [' ○', COLORS.green]
+      return ['  ', null]
+    }),
+  )
+}
+
 // ---------------------------------------------------------------- desenho
 
 const RULES = {
@@ -718,21 +904,29 @@ const RULES = {
     tick: tetrisTick,
     key: tetrisKey,
     rows: tetrisRows,
-    help: ['←→ move · ↑ gira · ↓ desce', 'espaço solta · p pausa · q menu'],
+    help: ['a d move · w gira · s desce', 'espaço solta · p pausa · q menu'],
   },
   snake: {
     create: newSnake,
     tick: snakeTick,
     key: snakeKey,
     rows: snakeRows,
-    help: ['setas mudam a direção', 'espaço ou p pausa · q menu'],
+    help: ['w a s d mudam a direção', 'espaço ou p pausa · q menu'],
   },
   pacman: {
     create: newPacman,
     tick: pacmanTick,
     key: pacmanKey,
     rows: pacmanRows,
-    help: ['setas movem', 'espaço ou p pausa · q menu'],
+    help: ['w a s d movem', 'espaço ou p pausa · q menu'],
+  },
+  sokoban: {
+    create: newSokoban,
+    tick: sokobanTick,
+    key: sokobanKey,
+    rows: sokobanRows,
+    saveOnQuit: true,
+    help: ['w a s d movem e empurram a caixa', 'r reinicia a fase · p pausa · q menu'],
   },
 }
 
@@ -758,10 +952,10 @@ function menuRows(world, p) {
   })
   rows.push(
     [],
-    [['↑↓ escolhe · espaço joga · 1 2 3', COLORS.dim]],
+    [['w s escolhe · espaço joga · 1-' + GAMES.length, COLORS.dim]],
     [],
-    [['Clique aqui para o jogo receber', COLORS.dim]],
-    [['o teclado; Esc devolve ao prompt.', COLORS.dim]],
+    [['Clique aqui antes de jogar; sem o', COLORS.dim]],
+    [['clique, a seta ← sai da sessão!', COLORS.red]],
   )
   return rows
 }
@@ -780,13 +974,18 @@ function gameRows(world, p) {
 
   let status = []
   if (game.over) {
-    status = [[game.isRecord ? 'NOVO RECORDE! ' : 'FIM DE JOGO · ', COLORS.red, true], ['espaço recomeça · q menu', COLORS.text]]
+    const label = game.isRecord ? 'NOVO RECORDE! ' : game.won ? 'TODAS AS FASES! ' : 'FIM DE JOGO · '
+    status = [[label, game.won ? COLORS.green : COLORS.red, true], ['espaço recomeça · q menu', COLORS.text]]
   } else if (game.paused) {
     status = [['PAUSADO', COLORS.yellow, true], [' · espaço ou p continua', COLORS.text]]
   } else if (game.id === 'pacman' && game.wait > 0) {
     status = [[game.level > 1 && game.score ? 'NÍVEL ' + game.level + '!' : 'PRONTO!', COLORS.yellow, true]]
   } else if (game.id === 'pacman') {
     status = [['nível ' + game.level, COLORS.dim]]
+  } else if (game.id === 'sokoban' && game.cleared) {
+    status = [['FASE CONCLUÍDA! ', COLORS.green, true], ['espaço segue', COLORS.text]]
+  } else if (game.id === 'sokoban') {
+    status = [['fase ' + (game.level + 1) + '/' + SOKOBAN_LEVELS.length, COLORS.dim]]
   }
 
   return [header, status, ...rules.rows(game), ...rules.help.map((text) => [[text, COLORS.dim]])]

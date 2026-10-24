@@ -1,6 +1,6 @@
 {
   "name": "right-panel",
-  "version": "0.4.0",
-  "description": "Painel lateral estilo OpenCode: sessão, contexto, limites, tarefas, subagentes, arquivos, git, MCPs e atalhos; tema Dracula; explorador de arquivos (/explorer); fliperama com Tetris, Snake e Pac-Man (/game)",
+  "version": "0.6.1",
+  "description": "Painel lateral estilo OpenCode: sessão, contexto, limites, tarefas, subagentes, arquivos, git, MCPs e atalhos; tema Dracula; explorador de arquivos com ícones Nerd Font coloridos (/explorer); fliperama com Tetris, Snake, Pac-Man e Sokoban (/game)",
   "author": { "name": "Adriano Santos" }
 }

@@ -13,7 +13,7 @@
 //   - atalhos de prompt e comandos rápidos
 //
 // E dois painéis extras: o explorador de arquivos (/explorer) e o fliperama
-// (/game: Tetris, Snake e Pac-Man, desenhados por um Client em games.js).
+// (/game: Tetris, Snake, Pac-Man e Sokoban, desenhados por um Client em games.js).
 //
 // Regras da análise estática dos mods: cada chamada escrita por extenso
 // ($.ns.metodo), nomes de evento como string literal, e funções que recebem $
@@ -32,7 +32,7 @@ const EXPLORER = 'explorer'
 const EXPLORER_HIDDEN = ['.git']
 const MAX_TREE_ROWS = 500
 const GAME = 'game'
-const GAME_IDS = ['tetris', 'snake', 'pacman']
+const GAME_IDS = ['tetris', 'snake', 'pacman', 'sokoban']
 
 // Atalhos que preenchem o prompt (sem enviar) e comandos que rodam num clique.
 const PROMPT_SHORTCUTS = [
@@ -55,6 +55,7 @@ const PALETTES = {
     info: '#8be9fd',
     ok: '#50fa7b',
     warn: '#f1fa8c',
+    orange: '#ffb86c',
     err: '#ff5555',
   },
   auto: {
@@ -63,9 +64,69 @@ const PALETTES = {
     info: 'suggestion',
     ok: 'success',
     warn: 'warning',
+    orange: 'warning',
     err: 'error',
   },
 }
+
+// Ícones do Explorer. `nerd` pede uma Nerd Font no terminal (terminal.integrated.fontFamily
+// no VS Code); `simples` e `emoji` funcionam com qualquer fonte. Cada tipo de arquivo tem um
+// ícone e uma cor (chave da paleta), e o ícone vai num Text ao lado do Button do nome, porque
+// o texto de um Button não aceita cor própria.
+const ICON_SETS = {
+  nerd: {
+    dir: '', dirOpen: '', file: '',
+    js: '', ts: '', web: '', json: '', config: '', md: '',
+    text: '', delphi: '', py: '', shell: '', image: '',
+    archive: '', pdf: '', data: '', media: '', git: '',
+    npm: '', lock: '', docker: '',
+  },
+  simples: { dir: '▸', dirOpen: '▾', file: '●' },
+  emoji: {
+    dir: '\u{1F4C1}', dirOpen: '\u{1F4C2}', file: '\u{1F4C4}',
+    js: '\u{1F4DC}', ts: '\u{1F4DC}', web: '\u{1F310}', json: '\u{1F527}', config: '\u{1F527}',
+    md: '\u{1F4DD}', delphi: '\u{1F4DC}', py: '\u{1F40D}', shell: '⚡', image: '\u{1F3A8}',
+    archive: '\u{1F4E6}', pdf: '\u{1F4D5}', data: '\u{1F4BE}', media: '\u{1F3AC}', git: '\u{1F500}',
+    npm: '\u{1F4E6}', lock: '\u{1F512}', docker: '\u{1F433}',
+  },
+}
+const KIND_COLORS = {
+  dir: 'title', js: 'warn', ts: 'info', web: 'err', json: 'orange', config: 'orange', md: 'ok',
+  text: 'dim', delphi: 'accent', py: 'info', shell: 'ok', image: 'accent', archive: 'warn',
+  pdf: 'err', data: 'info', media: 'accent', git: 'err', npm: 'err', lock: 'dim', docker: 'info',
+  file: 'text',
+}
+const KIND_EXTENSIONS = {
+  js: ['js', 'mjs', 'cjs', 'jsx'],
+  ts: ['ts', 'tsx'],
+  web: ['html', 'htm', 'css', 'scss'],
+  json: ['json', 'jsonc'],
+  config: ['yml', 'yaml', 'toml', 'ini', 'env', 'conf', 'cfg', 'xml', 'dproj', 'groupproj'],
+  md: ['md', 'mdx'],
+  text: ['txt', 'log'],
+  delphi: ['pas', 'dpr', 'dpk', 'dfm', 'fmx', 'inc'],
+  py: ['py'],
+  shell: ['sh', 'bat', 'cmd', 'ps1', 'exe'],
+  image: ['png', 'jpg', 'jpeg', 'gif', 'svg', 'ico', 'webp', 'bmp'],
+  archive: ['zip', 'rar', '7z', 'tar', 'gz'],
+  pdf: ['pdf'],
+  data: ['sql', 'db', 'sqlite', 'fdb'],
+  media: ['mp3', 'wav', 'mp4', 'mkv', 'mov'],
+  lock: ['lock'],
+}
+const KIND_BY_EXTENSION = {}
+for (const [kind, extensions] of Object.entries(KIND_EXTENSIONS)) {
+  for (const extension of extensions) KIND_BY_EXTENSION[extension] = kind
+}
+const KIND_BY_NAME = {
+  '.gitignore': 'git',
+  '.gitattributes': 'git',
+  'package.json': 'npm',
+  'package-lock.json': 'lock',
+  dockerfile: 'docker',
+}
+// Pastas de build, dependências e histórico: aparecem apagadas.
+const MUTED_DIRS = ['node_modules', '.claude-plugin', '.vscode', '.idea', 'dist', 'build', '__history', '__recovery', 'win32', 'win64']
 
 const CONTEXT_NAMES = {
   'System prompt': 'Sistema',
@@ -90,6 +151,7 @@ let agents = [] // AgentInfo
 let git = null // { upstream, ahead, behind, last, files: [{ path, add, del }], untracked }
 let turns = 0
 let themeName = 'dracula'
+let iconSet = 'nerd'
 let tickTimer = null
 
 // Explorador: pastas abertas ('' é a raiz) e o conteúdo já lido de cada uma.
@@ -97,7 +159,7 @@ let expanded = new Set([''])
 let dirEntries = new Map() // pasta relativa -> [{ name, kind }] ou { error }
 
 // Fliperama: recordes (gravados no $.store) e o motivo, se o Client falhou.
-let gameHighs = { tetris: 0, snake: 0, pacman: 0 }
+let gameHighs = { tetris: 0, snake: 0, pacman: 0, sokoban: 0 }
 let gameFault = ''
 let gameFocused = false
 
@@ -106,6 +168,7 @@ export function register(on) {
     const result = await next(e)
     resetState()
     await loadTheme($)
+    await loadIcons($)
     await rebuildFromTranscript($)
     await refreshAll($)
     await maybeAutoOpen($)
@@ -122,14 +185,15 @@ export function register(on) {
     try {
       await $.command.register({
         name: 'explorer',
-        description: 'Abre ou fecha o explorador de arquivos do diretório (Right Panel)',
+        description: 'Abre ou fecha o explorador de arquivos do diretório (Right Panel); "icones nerd|simples|emoji" troca os ícones',
+        argumentHint: '[icones nerd|simples|emoji]',
         immediate: true,
       })
     } catch {}
     try {
       await $.command.register({
         name: 'game',
-        description: 'Abre ou fecha o fliperama: Tetris, Snake e Pac-Man (Right Panel)',
+        description: 'Abre ou fecha o fliperama: Tetris, Snake, Pac-Man e Sokoban (Right Panel)',
         immediate: true,
       })
     } catch {}
@@ -154,7 +218,9 @@ export function register(on) {
     return {}
   })
 
-  on('command.run', { command: 'explorer' }, async ($) => {
+  on('command.run', { command: 'explorer' }, async ($, e) => {
+    const args = String(e.args || '').trim().split(/\s+/).filter(Boolean)
+    if (args[0] === 'icones' || args[0] === 'ícones') return { text: await setIcons($, args[1]) }
     await toggleExplorer($)
     return {}
   })
@@ -770,15 +836,52 @@ function treeRows(dir, depth, rows) {
   }
 }
 
+// Tipo de um arquivo pelo nome especial ou pela extensão.
+function fileKind(name) {
+  const lower = String(name).toLowerCase()
+  if (KIND_BY_NAME[lower]) return KIND_BY_NAME[lower]
+  const dot = lower.lastIndexOf('.')
+  return (dot > 0 && KIND_BY_EXTENSION[lower.slice(dot + 1)]) || 'file'
+}
+
+// Ícone e estilo de uma linha da árvore; tipo sem ícone no conjunto usa o ícone de arquivo.
+function iconFor(row) {
+  const icons = ICON_SETS[iconSet] || ICON_SETS.nerd
+  if (row.kind === 'dir') {
+    const muted = MUTED_DIRS.includes(row.name.toLowerCase())
+    return { glyph: row.isOpen ? icons.dirOpen : icons.dir, style: muted ? 'dim' : KIND_COLORS.dir, muted }
+  }
+  const kind = fileKind(row.name)
+  return { glyph: icons[kind] || icons.file, style: KIND_COLORS[kind] || 'text', muted: false }
+}
+
+async function loadIcons($) {
+  try {
+    const saved = await $.store.get('explorerIcons')
+    if (typeof saved === 'string' && ICON_SETS[saved]) iconSet = saved
+  } catch {}
+}
+
+async function setIcons($, name) {
+  if (!ICON_SETS[name]) return 'Ícones: ' + Object.keys(ICON_SETS).join(', ') + ' (atual: ' + iconSet + ')'
+  iconSet = name
+  await $.store.set('explorerIcons', name)
+  $.ui.invalidate('ui.render')
+  return 'Ícones do Explorer: ' + name
+}
+
 function drawExplorer($, Box, Text, Button, bodyRows) {
   const rows = []
   treeRows('', 0, rows)
   const items = []
+  const rootIcon = (ICON_SETS[iconSet] || ICON_SETS.nerd).dirOpen
+  const hover = { color: palette().title, bold: true }
 
   items.push(
     Box({
       flexDirection: 'row',
       children: [
+        Text({ ...styled('title'), children: rootIcon + ' ' }),
         Text({ bold: true, wrap: 'truncate-end', ...styled('text'), children: info.project || '.' }),
         Text({ children: '  ' }),
         Button({ key: 'explorer:refresh', label: '↻', plain: true, hotkey: 'r', onPress: () => refreshExplorer($) }),
@@ -794,26 +897,28 @@ function drawExplorer($, Box, Text, Button, bodyRows) {
     const indent = '  '.repeat(row.depth)
     if (row.kind === 'error') {
       items.push(Text({ ...styled('err'), wrap: 'truncate-end', children: indent + row.name }))
-    } else if (row.kind === 'dir') {
-      items.push(
-        Button({
-          key: 'dir:' + row.path,
-          label: indent + (row.isOpen ? '▾ ' : '▸ ') + row.name,
-          plain: true,
-          onPress: () => toggleDir($, row.path),
-        }),
-      )
-    } else {
-      items.push(
-        Button({
-          key: 'file:' + row.path,
-          label: indent + '  ' + row.name,
-          plain: true,
-          dimColor: true,
-          onPress: (press) => copyPath($, row.path, press.surface),
-        }),
-      )
+      continue
     }
+    const icon = iconFor(row)
+    const isDir = row.kind === 'dir'
+    // O hover do Button precisa de uma Box com key em volta: é ela que o ponteiro "pisa".
+    items.push(
+      Box({
+        key: 'row:' + row.path,
+        flexDirection: 'row',
+        children: [
+          Text({ ...styled(icon.style), children: indent + icon.glyph + ' ' }),
+          Button({
+            key: (isDir ? 'dir:' : 'file:') + row.path,
+            label: row.name,
+            plain: true,
+            dimColor: !isDir || icon.muted,
+            hover,
+            onPress: isDir ? () => toggleDir($, row.path) : (press) => copyPath($, row.path, press.surface),
+          }),
+        ],
+      }),
+    )
   }
 
   if (rows.length >= MAX_TREE_ROWS) items.push(Text({ ...styled('dim'), children: '… lista cortada em ' + MAX_TREE_ROWS }))
@@ -821,6 +926,7 @@ function drawExplorer($, Box, Text, Button, bodyRows) {
   items.push(
     Text({ ...styled('dim'), wrap: 'truncate-end', children: 'clique: abre pasta / copia caminho · r atualiza · c recolhe' }),
   )
+  items.push(Text({ ...styled('dim'), wrap: 'truncate-end', children: 'ícones: ' + iconSet + ' · /explorer icones' }))
 
   return Box({ ...rootProps(bodyRows), children: items })
 }
@@ -883,7 +989,9 @@ function drawGame(Box, Text, Client, surface, bodyRows) {
   }
   return Box({
     ...rootProps(bodyRows),
-    children: [Client({ key: 'fliperama', module: './games.js', props: gameProps() })],
+    // O Client ocupa o painel todo: o teclado só chega ao jogo depois de um clique nele,
+    // e um clique fora da área desenhada não conta.
+    children: [Client({ key: 'fliperama', module: './games.js', props: gameProps(), width: '100%', height: bodyRows || '100%' })],
   })
 }
 
