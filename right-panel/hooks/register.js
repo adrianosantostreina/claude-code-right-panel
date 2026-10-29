@@ -12,6 +12,8 @@
 //   - servidores MCP conectados (e quantas vezes cada um foi usado)
 //   - atalhos de prompt e comandos rápidos
 //
+// Mais uma faixa de uma linha acima do prompt (modelo, effort, contexto e limites; /rodape on|off).
+//
 // E dois painéis extras: o explorador de arquivos (/explorer) e o fliperama
 // (/game: Tetris, Snake, Pac-Man e Sokoban, desenhados por um Client em games.js).
 //
@@ -27,6 +29,8 @@ const MAX_GIT_FILES = 8
 const MAX_MCP = 10
 const MAX_CONTEXT_ROWS = 6
 const TICK_MS = 15_000
+const FX_URL = 'https://economia.awesomeapi.com.br/json/last/USD-BRL'
+const FX_TTL_MS = 30 * 60_000
 const EXPLORER = 'explorer'
 const EXPLORER_HIDDEN = ['.git']
 const MAX_TREE_ROWS = 500
@@ -161,6 +165,10 @@ let iconSet = 'nerd'
 let sections = { context: false, mcp: false, calendar: true } // seções recolhíveis: true = aberta
 let tickTimer = null
 
+// Faixa acima do prompt: ligada por padrão (`/rodape on|off`); o effort só chega pelo turn.step.
+let footer = { on: true, effort: '' }
+let fx = { rate: 0, at: 0 } // cotação do dólar em reais (AwesomeAPI), cache de 30 min no $.store
+
 // Calendário: quantos meses à frente (ou atrás) do mês atual; relógio: o motivo, se o Client falhou.
 let calendarOffset = 0
 let clockFault = ''
@@ -181,6 +189,8 @@ export function register(on) {
     await loadTheme($)
     await loadIcons($)
     await loadSections($)
+    await loadFooter($)
+    await loadRate($)
     await rebuildFromTranscript($)
     await refreshAll($)
     await maybeAutoOpen($)
@@ -209,8 +219,18 @@ export function register(on) {
         immediate: true,
       })
     } catch {}
+    try {
+      await $.command.register({
+        name: 'rodape',
+        description: 'Liga ou desliga a faixa acima do prompt com modelo, effort, contexto e limites (Right Panel)',
+        argumentHint: '[on|off]',
+        immediate: true,
+      })
+    } catch {}
     await loadGameHighs($)
     startTicker($)
+    // A cotação vem da rede: busca sem segurar o início da sessão.
+    refreshRate($).then(() => $.ui.invalidate('ui.render'))
     return result
   })
 
@@ -240,6 +260,21 @@ export function register(on) {
   on('command.run', { command: 'game' }, async ($) => {
     await toggleGame($)
     return {}
+  })
+
+  on('command.run', { command: 'rodape' }, async ($, e) => {
+    const args = String(e.args || '').trim().split(/\s+/).filter(Boolean)
+    return { text: await setFooter($, args[0]) }
+  })
+
+  // A requisição ao modelo diz o effort em uso; guarda o do loop principal e só redesenha se mudou.
+  on('turn.step', async function* ($, e, next) {
+    const effort = e.effort == null ? '' : String(e.effort)
+    if (e.agentId === undefined && effort !== footer.effort) {
+      footer.effort = effort
+      $.ui.invalidate('ui.render')
+    }
+    return yield* next(e)
   })
 
   // O Client do fliperama terminou uma partida: grava o recorde.
@@ -300,6 +335,15 @@ export function register(on) {
     return next(e)
   })
 
+  // A faixa de uma linha acima do prompt: modelo, effort, contexto e limites.
+  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    const props = e.props || {}
+    if (!footer.on || props.hasSurvey) return next(e)
+    const { Box, Text } = $.ui.resolve(e)
+    const row = drawFooter(Box, Text, props.bodyColumns || 80)
+    return row || next(e)
+  })
+
   on('ui.render', { component: 'Pane' }, async ($, e, next) => {
     const props = e.props || {}
     const bodyRows = (props.scroll && props.scroll.bodyRows) || 0
@@ -332,6 +376,7 @@ function resetState() {
   git = null
   turns = 0
   clockFault = ''
+  footer.effort = ''
 }
 
 // Reaplica as chamadas de ferramenta já feitas (útil em /resume e ao recarregar o mod).
@@ -546,6 +591,7 @@ function startTicker($) {
 
 async function tick($) {
   await refreshClock($)
+  await refreshRate($)
   await refreshAgents($)
   $.ui.invalidate('ui.render')
 }
@@ -585,6 +631,44 @@ async function toggleSection($, name) {
     await $.store.set('sections', sections)
   } catch {}
   $.ui.invalidate('ui.render')
+}
+
+async function loadFooter($) {
+  try {
+    footer.on = (await $.store.get('footerOn')) !== false
+  } catch {}
+}
+
+// Cotação guardada de uma sessão anterior: aparece já, mesmo antes da busca.
+async function loadRate($) {
+  try {
+    const saved = await $.store.get('usdBrl')
+    if (saved && saved.rate > 0) fx = { rate: saved.rate, at: saved.at || 0 }
+  } catch {}
+}
+
+// Busca a cotação quando a guardada passou de 30 min. Falhou: segue com a última conhecida.
+async function refreshRate($) {
+  try {
+    if (!now) await refreshClock($)
+    if (fx.rate && now - fx.at < FX_TTL_MS) return
+    const res = await $.http.fetch(FX_URL)
+    if (!res.ok) return
+    const rate = Number(JSON.parse(res.text).USDBRL.bid)
+    if (!(rate > 0)) return
+    fx = { rate, at: now }
+    await $.store.set('usdBrl', fx)
+  } catch {}
+}
+
+async function setFooter($, arg) {
+  if (arg !== 'on' && arg !== 'off') return 'Faixa do rodapé: ' + (footer.on ? 'ligada' : 'desligada') + ' (use /rodape on ou /rodape off)'
+  footer.on = arg === 'on'
+  try {
+    await $.store.set('footerOn', footer.on)
+  } catch {}
+  $.ui.invalidate('ui.render')
+  return 'Faixa do rodapé ' + (footer.on ? 'ligada' : 'desligada')
 }
 
 async function setTheme($, name) {
@@ -662,6 +746,53 @@ function shiftMonth($, step) {
   $.ui.invalidate('ui.render')
 }
 
+// A linha da faixa: modelo │ effort │ contexto │ limites │ custo │ cotação. Se não cabe, tira a
+// cotação, depois o tempo até renovar e por fim a barra do contexto. Devolve null quando ainda não há nada para mostrar.
+function drawFooter(Box, Text, columns) {
+  const build = (detail) => {
+    const parts = []
+    if (info.model) parts.push({ text: info.model, style: 'info', bold: true })
+    if (footer.effort) parts.push({ text: 'effort ' + footer.effort, style: 'accent' })
+    if (usage.window) {
+      const gauge = detail >= 1 ? bar(usage.percent, 8) + ' ' : ''
+      parts.push({ text: 'ctx ' + gauge + usage.percent + '%', style: levelStyle(usage.percent) })
+    }
+    for (const limit of usage.limits) {
+      const pct = Math.round(limit.percentUsed)
+      const reset = detail >= 2 ? resetIn(limit.resetsAt) : ''
+      parts.push({ text: limitLabel(limit.kind) + ' ' + pct + '%' + (reset ? ' ↻ ' + reset : ''), style: levelStyle(pct) })
+    }
+    // Custo aproximado da sessão (o que o Claude Code estima) em dólar e em reais, e a cotação.
+    if (usage.usd != null) {
+      const brl = fx.rate ? ' ≈ R$ ' + money(usage.usd * fx.rate) : ''
+      parts.push({ text: 'US$ ' + money(usage.usd) + brl, style: 'warn' })
+    }
+    if (detail >= 3 && fx.rate) parts.push({ text: 'US$ 1 = R$ ' + fx.rate.toFixed(2), style: 'dim' })
+    return parts
+  }
+  const width = (parts) => parts.reduce((sum, p) => sum + p.text.length, 0) + Math.max(0, parts.length - 1) * 3 + 2
+  let parts = build(3)
+  for (const detail of [2, 1, 0]) {
+    if (width(parts) <= columns) break
+    parts = build(detail)
+  }
+  if (!parts.length) return null
+
+  const p = palette()
+  const children = []
+  parts.forEach((part, i) => {
+    if (i) children.push(Text({ ...styled('dim'), children: ' │ ' }))
+    children.push(Text({ wrap: 'truncate-end', ...styled(part.style), ...(part.bold ? { bold: true } : {}), children: part.text }))
+  })
+  return Box({
+    key: 'rodape',
+    flexDirection: 'row',
+    paddingX: 1,
+    ...(p.bg ? { backgroundColor: p.bg } : {}),
+    children,
+  })
+}
+
 function drawPanel($, Box, Text, Button, Client, surface, columns, bodyRows) {
   const width = Math.max(20, columns)
   const rows = []
@@ -681,10 +812,14 @@ function drawPanel($, Box, Text, Button, Client, surface, columns, bodyRows) {
       onPress: () => toggleSection($, name),
     })
 
+  // Com a faixa acima do prompt ligada (só terminal e desktop a desenham), modelo, barra do
+  // contexto e limites moram nela e saem do painel; no VS Code ficam aqui.
+  const inFooter = footer.on && (surface === 'terminal' || surface === 'desktop')
+
   // Cabeçalho: projeto, branch e modelo
   line(info.project || 'Sessão', 'text', { bold: true })
   if (info.branch) line('⎇ ' + info.branch, 'accent')
-  if (info.model) line(info.model, 'info')
+  if (info.model && !inFooter) line(info.model, 'info')
 
   // Atalhos, em grade de dois por linha
   title('Atalhos')
@@ -704,12 +839,12 @@ function drawPanel($, Box, Text, Button, Client, surface, columns, bodyRows) {
   const facts = []
   if (usage.startedAt && now > usage.startedAt) facts.push('⏱ ' + duration(now - usage.startedAt))
   if (turns) facts.push(turns + (turns === 1 ? ' prompt' : ' prompts'))
-  if (usage.usd != null) facts.push('US$ ' + usage.usd.toFixed(2))
+  if (usage.usd != null && !inFooter) facts.push('US$ ' + usage.usd.toFixed(2))
   if (facts.length) line(facts.join('  ·  '), 'text')
 
   // Contexto; a composição (onde gastam os tokens) fica atrás de uma seta
   title('Contexto')
-  if (usage.window) {
+  if (usage.window && !inFooter) {
     const barWidth = Math.min(24, width - 8)
     line(bar(usage.percent, barWidth) + ' ' + usage.percent + '%', levelStyle(usage.percent))
   }
@@ -734,7 +869,7 @@ function drawPanel($, Box, Text, Button, Client, surface, columns, bodyRows) {
   }
 
   // Limites do plano e quando renovam
-  if (usage.limits.length) {
+  if (usage.limits.length && !inFooter) {
     title('Limites')
     for (const limit of usage.limits) {
       const pct = Math.round(limit.percentUsed)
@@ -1112,6 +1247,11 @@ function drawGame(Box, Text, Client, surface, bodyRows) {
 }
 
 // ---------------------------------------------------------------- utilitários
+
+// Valor em moeda: três casas só quando é menos de 10 centavos.
+function money(value) {
+  return value < 0.1 ? value.toFixed(3) : value.toFixed(2)
+}
 
 function bar(percent, width) {
   const p = Math.max(0, Math.min(100, percent || 0))

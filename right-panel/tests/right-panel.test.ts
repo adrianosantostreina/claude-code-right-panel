@@ -71,10 +71,39 @@ test('abre o painel sozinho e mostra projeto, branch, contexto e custo', async (
   const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: 'meu-projeto' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /main/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /25%$/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: '50.0k / 200.0k tokens' })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /US\$ 1\.23/ })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /^5h/ })).toBeDefined()
+  // com a faixa ligada (padrão), modelo, barra do contexto e limites moram nela
+  expect(await ui.find({ type: 'Text', text: 'Opus 5.5' })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /25%$/ })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /^5h/ })).toBeUndefined()
+})
+
+test('faixa ligada tira modelo, barra e limites do painel; /rodape off os devolve; no VS Code ficam', async ($, on) => {
+  const saved = new Map<string, unknown>()
+  stubSession(on, [], saved)
+  await start($)
+  const duplicated = async (ui) => [
+    await ui.find({ type: 'Text', text: 'Opus 5.5' }),
+    await ui.find({ type: 'Text', text: /25%$/ }),
+    await ui.find({ type: 'Text', text: /^5h/ }),
+  ]
+
+  const vscode = await $.ui.mount({ ...PANE, surface: 'vscode' })
+  expect((await duplicated(vscode)).every((found) => found !== undefined)).toBe(true)
+  await vscode.unmount()
+
+  const ui = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await duplicated(ui)).every((found) => found === undefined)).toBe(true)
+  await ui.unmount()
+
+  await $.command.run({ command: 'rodape', args: 'off' })
+  const back = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await duplicated(back)).every((found) => found !== undefined)).toBe(true)
+  await back.unmount()
+
+  await $.command.run({ command: 'rodape', args: 'on' })
+  const again = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect((await duplicated(again)).every((found) => found === undefined)).toBe(true)
 })
 
 test('ordem: projeto, branch, modelo, atalhos em grade e, no fim, relógio e calendário', async ($, on) => {
@@ -86,11 +115,9 @@ test('ordem: projeto, branch, modelo, atalhos em grade e, no fim, relógio e cal
   const at = (text: string) => tree.indexOf(text)
   expect(at('meu-projeto')).toBeGreaterThan(-1)
   expect(at('meu-projeto')).toBeLessThan(at('⎇ main'))
-  expect(at('⎇ main')).toBeLessThan(at('Opus 5.5'))
-  expect(at('Opus 5.5')).toBeLessThan(at('Atalhos'))
+  expect(at('⎇ main')).toBeLessThan(at('Atalhos'))
   expect(at('Atalhos')).toBeLessThan(at('Contexto'))
-  expect(at('Contexto')).toBeLessThan(at('Limites'))
-  expect(at('Limites')).toBeLessThan(at('Git'))
+  expect(at('Contexto')).toBeLessThan(at('Git'))
   expect(at('Git')).toBeLessThan(at('relogio'))
   expect(at('relogio')).toBeLessThan(at('Calendário'))
   for (const key of ['prompt:handoff', 'prompt:ler-handoff', 'open:explorer', 'open:game']) {
@@ -278,7 +305,9 @@ test('mostra sessão, composição do contexto, reset dos limites e git', async 
   await ui.press({ key: 'toggle:context' })
   expect(await ui.find({ type: 'Text', text: /^Mensagens\s+30\.0k\s+15%$/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /^Free space/ })).toBeUndefined()
-  expect(await ui.find({ type: 'Text', text: /^5h .*↻ 2h10$/ })).toBeDefined()
+  // o tempo para renovar o limite vai na faixa acima do prompt
+  const footer = await $.ui.mount({ ...FOOTER })
+  expect(await footer.find({ type: 'Text', text: /^5h 40% ↻ 2h10$/ })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: '↑2 ↓0' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: 'cf8940f feat: explorer' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /^\+12 −3\s+register\.js$/ })).toBeDefined()
@@ -394,7 +423,7 @@ test('relógio: Client com dígitos em blocos e segundos andando', async ($, on)
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...PANE, surface })
     expect(await ui.find({ type: 'Client', key: 'relogio' })).toBeDefined()
-    expect(/[█▀▄]/.test(JSON.stringify(await ui.drawn()))).toBe(true)
+    expect(await ui.find({ type: 'Text', text: /[█▀▄]/, in: 'relogio' })).toBeDefined()
     await ui.advance(3000)
     expect(await ui.find({ type: 'Client', key: 'relogio' })).toBeDefined()
     await ui.unmount()
@@ -550,4 +579,114 @@ test('no VS Code, sem Client, o fliperama explica em vez de quebrar', async ($, 
   await start($)
   const ui = await $.ui.mount({ ...GAME_PANE, surface: 'vscode' })
   expect(await ui.find({ type: 'Text', text: /só roda no Claude Code do terminal/ })).toBeDefined()
+})
+
+// O que o Claude Code passa ao ui.render da faixa acima do prompt
+const FOOTER = {
+  plugin: 'right-panel',
+  component: 'AbovePrompt',
+  surface: 'terminal',
+  viewport: { columns: 120, rows: 40 },
+  props: {
+    hasSurvey: false,
+    isWorking: false,
+    maxRows: 10,
+    bodyColumns: 115,
+    scroll: { offset: 0, bodyRows: 9 },
+    view: {},
+  },
+} as const
+
+test('rodapé: faixa com modelo, contexto e limites acima do prompt', async ($, on) => {
+  stubSession(on, [])
+  await start($)
+  const ui = await $.ui.mount({ ...FOOTER })
+  expect(await ui.find({ type: 'Text', text: 'Opus 5.5' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^ctx .* 25%$/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /^5h 40%/ })).toBeDefined()
+})
+
+test('rodapé: estreito tira a barra do contexto e o tempo para renovar', async ($, on) => {
+  stubSession(on, [])
+  await start($)
+  const ui = await $.ui.mount({ ...FOOTER, props: { ...FOOTER.props, bodyColumns: 30 } })
+  expect(await ui.find({ type: 'Text', text: 'ctx 25%' })).toBeDefined()
+})
+
+test('rodapé: some quando há pesquisa na faixa e /rodape off desliga e grava', async ($, on) => {
+  const saved = new Map<string, unknown>()
+  on('ui.render', ($, e) => $.ui.resolve(e).Text({ children: 'motor' }))
+  stubSession(on, [], saved)
+  await start($)
+  const survey = await $.ui.mount({ ...FOOTER, props: { ...FOOTER.props, hasSurvey: true } })
+  expect(await survey.find({ type: 'Text', text: 'motor' })).toBeDefined()
+  expect(await survey.find({ type: 'Text', text: 'Opus 5.5' })).toBeUndefined()
+
+  const result = await $.command.run({ command: 'rodape', args: 'off' })
+  expect(result.text).toBe('Faixa do rodapé desligada')
+  expect(saved.get('footerOn')).toBe(false)
+  const ui = await $.ui.mount({ ...FOOTER })
+  expect(await ui.find({ type: 'Text', text: 'motor' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: 'Opus 5.5' })).toBeUndefined()
+})
+
+test('rodapé: o effort do turn.step aparece na faixa; o de subagente não conta', async ($, on) => {
+  stubSession(on, [])
+  on('turn.step', async function* ($, e) {
+    return { turnId: e.turnId, index: e.index, answer: "", toolUses: [], stopReason: null, usage: null }
+  })
+  await start($)
+  const step = { turnId: 't1', index: 0, model: 'opus', messageCount: 1 }
+  for await (const chunk of $.turn.step({ ...step, agentId: 'sub-1', effort: 'low' })) void chunk
+  expect(await (await $.ui.mount({ ...FOOTER })).find({ type: 'Text', text: /^effort/ })).toBeUndefined()
+  for await (const chunk of $.turn.step({ ...step, effort: 'high' })) void chunk
+  expect(await (await $.ui.mount({ ...FOOTER })).find({ type: 'Text', text: 'effort high' })).toBeDefined()
+})
+
+const FX = (bid: string) => ({ value: { status: 200, ok: true, headers: {}, text: JSON.stringify({ USDBRL: { bid } }) } })
+const NOW = Date.parse('2026-10-14T12:00:00Z')
+
+test('rodapé: custo em dólar e em reais e a cotação, buscada na rede e guardada', async ($, on) => {
+  const saved = new Map<string, unknown>()
+  const urls: string[] = []
+  on('http.fetch', ($, e) => (urls.push(e.url), FX('5.3537')))
+  stubSession(on, [], saved)
+  await start($)
+  await new Promise((resolve) => setTimeout(resolve, 30))
+
+  expect(urls).toEqual(['https://economia.awesomeapi.com.br/json/last/USD-BRL'])
+  expect(saved.get('usdBrl')).toEqual({ rate: 5.3537, at: NOW })
+  const ui = await $.ui.mount({ ...FOOTER })
+  expect(await ui.find({ type: 'Text', text: 'US$ 1.23 ≈ R$ 6.61' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: 'US$ 1 = R$ 5.35' })).toBeDefined()
+})
+
+test('rodapé: cotação guardada e recente não vai à rede; velha é renovada', async ($, on) => {
+  const fresh = new Map<string, unknown>([['usdBrl', { rate: 5, at: NOW - 60_000 }]])
+  let calls = 0
+  on('http.fetch', () => (calls += 1, FX('6')))
+  stubSession(on, [], fresh)
+  await start($)
+  await new Promise((resolve) => setTimeout(resolve, 30))
+  expect(calls).toBe(0)
+  expect(await (await $.ui.mount({ ...FOOTER })).find({ type: 'Text', text: 'US$ 1.23 ≈ R$ 6.17' })).toBeDefined()
+})
+
+test('rodapé: sem rede mostra o custo em dólar, e com cotação velha segue com ela', async ($, on) => {
+  const old = new Map<string, unknown>([['usdBrl', { rate: 5, at: NOW - 3 * 3_600_000 }]])
+  on('http.fetch', () => ({ value: { status: 500, ok: false, headers: {}, text: '' } }))
+  stubSession(on, [], old)
+  await start($)
+  await new Promise((resolve) => setTimeout(resolve, 30))
+  expect(await (await $.ui.mount({ ...FOOTER })).find({ type: 'Text', text: 'US$ 1.23 ≈ R$ 6.17' })).toBeDefined()
+})
+
+test('rodapé: sem cotação nenhuma mostra só o dólar e o painel não repete o custo', async ($, on) => {
+  stubSession(on, [])
+  await start($)
+  const footer = await $.ui.mount({ ...FOOTER })
+  expect(await footer.find({ type: 'Text', text: 'US$ 1.23' })).toBeDefined()
+  expect(await footer.find({ type: 'Text', text: /^US\$ 1 =/ })).toBeUndefined()
+  const panel = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await panel.find({ type: 'Text', text: /US\$ 1\.23/ })).toBeUndefined()
 })
