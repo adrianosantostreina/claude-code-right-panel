@@ -1,10 +1,13 @@
-// Fliperama do Right Panel (/game): Tetris, Snake, Pac-Man e Sokoban.
+// Fliperama do Right Panel (/game): Tetris, Snake, Pac-Man, Sokoban e Ricochete.
 //
 // Módulo de superfície de um Client: roda no thread de desenho do terminal,
 // sem $, com estado local, relógio próprio (surface.every) e teclado
 // (surface.onKey, que só recebe teclas depois que a área do jogo é clicada;
 // o Esc devolve o teclado ao prompt). O recorde de cada partida sobe para o
-// hooks module com surface.post, que o grava no $.store.
+// hooks module com surface.post, que o grava no $.store. O Ricochete se joga
+// com o mouse (surface.onPointer); a lógica dele mora em ricochete.js.
+
+import { RICOCHETE_LEVELS, TRIANGLES, newRicochete, ricocheteClick, ricocheteKey, ricocheteTick, trianglesOf } from './ricochete.js'
 
 const TICK_MS = 40
 
@@ -20,6 +23,7 @@ const COLORS = {
   orange: '#ffb86c',
   red: '#ff5555',
   blue: '#5f87ff',
+  black: '#000000',
 }
 
 const GAMES = [
@@ -27,10 +31,13 @@ const GAMES = [
   { id: 'snake', name: 'Snake', color: COLORS.green },
   { id: 'pacman', name: 'Pac-Man', color: COLORS.yellow },
   { id: 'sokoban', name: 'Sokoban', color: COLORS.orange },
+  { id: 'ricochete', name: 'Ricochete', color: COLORS.purple },
 ]
 
 // Linha do menu onde aparece o primeiro jogo (para o clique do mouse).
 const MENU_FIRST_ROW = 2
+// Linha do Client onde começa o campo do jogo (depois do cabeçalho e do status).
+const BOARD_FIRST_ROW = 2
 
 const DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] }
 const OPPOSITE = { up: 'down', down: 'up', left: 'right', right: 'left' }
@@ -120,7 +127,13 @@ function onKey(world, key, surface) {
 }
 
 function onPointer(world, event) {
-  if (world.screen !== 'menu') return false
+  if (world.screen !== 'menu') {
+    // Na partida, o clique vai para o jogo em casas do campo (cada casa tem 2 colunas).
+    const game = world.game
+    const click = game && RULES[game.id].click
+    if (!click || game.paused || game.over) return false
+    return click(game, Math.floor(event.x / 2), event.y - BOARD_FIRST_ROW, event.button)
+  }
   const index = event.y - MENU_FIRST_ROW
   if (index < 0 || index >= GAMES.length) return false
   startGame(world, index)
@@ -896,6 +909,41 @@ function sokobanRows(game) {
   )
 }
 
+// ---------------------------------------------------------------- Ricochete
+
+// O campo: a bolinha por cima de tudo, depois triângulos, buracos e paredes; o gol é o vão na borda.
+function ricocheteRows(game) {
+  return game.grid.map((row, y) =>
+    [...row].map((c, x) => {
+      if (game.ball.x === x && game.ball.y === y) return ['● ', COLORS.pink]
+      if (c === '#') return ['▒▒', COLORS.dim]
+      if (c === 'O') return ['██', COLORS.black]
+      const shape = c === '.' ? game.tris[y][x] : -1
+      if (shape >= 0) return [TRIANGLES[shape] + ' ', COLORS.yellow]
+      return ['  ', null]
+    }),
+  )
+}
+
+function ricocheteStatus(game) {
+  if (game.cleared) return [['GOL! ', COLORS.green, true], ['espaço segue', COLORS.text]]
+  if (game.lost) {
+    const label = game.lost === 'tempo' ? 'TEMPO ESGOTADO! ' : 'CAIU NO BURACO! '
+    return [[label, COLORS.red, true], ['espaço tenta de novo', COLORS.text]]
+  }
+  const level = RICOCHETE_LEVELS[game.level]
+  const status = [['fase ' + (game.level + 1) + '/' + RICOCHETE_LEVELS.length, COLORS.dim]]
+  if (game.timeLeft !== null) {
+    const seconds = Math.ceil(game.timeLeft / 1000)
+    status.push(['  ⏱ ' + seconds + 's', seconds <= 10 ? COLORS.red : COLORS.text])
+  }
+  if (level.limit) {
+    const used = trianglesOf(game)
+    status.push(['  △ ' + used + '/' + level.limit, used >= level.limit ? COLORS.red : COLORS.text])
+  }
+  return status
+}
+
 // ---------------------------------------------------------------- desenho
 
 const RULES = {
@@ -927,6 +975,15 @@ const RULES = {
     rows: sokobanRows,
     saveOnQuit: true,
     help: ['w a s d movem e empurram a caixa', 'r reinicia a fase · p pausa · q menu'],
+  },
+  ricochete: {
+    create: () => newRicochete(),
+    tick: ricocheteTick,
+    key: ricocheteKey,
+    click: ricocheteClick,
+    rows: ricocheteRows,
+    saveOnQuit: true,
+    help: ['clique põe e gira · direito tira', 'r reinicia · p pausa · q menu'],
   },
 }
 
@@ -986,6 +1043,8 @@ function gameRows(world, p) {
     status = [['FASE CONCLUÍDA! ', COLORS.green, true], ['espaço segue', COLORS.text]]
   } else if (game.id === 'sokoban') {
     status = [['fase ' + (game.level + 1) + '/' + SOKOBAN_LEVELS.length, COLORS.dim]]
+  } else if (game.id === 'ricochete') {
+    status = ricocheteStatus(game)
   }
 
   return [header, status, ...rules.rows(game), ...rules.help.map((text) => [[text, COLORS.dim]])]

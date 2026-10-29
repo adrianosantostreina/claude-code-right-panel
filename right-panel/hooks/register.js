@@ -15,7 +15,7 @@
 // Mais uma faixa de uma linha acima do prompt (modelo, effort, contexto e limites; /rodape on|off).
 //
 // E dois painéis extras: o explorador de arquivos (/explorer) e o fliperama
-// (/game: Tetris, Snake, Pac-Man e Sokoban, desenhados por um Client em games.js).
+// (/game: Tetris, Snake, Pac-Man, Sokoban e Ricochete, desenhados por um Client em games.js).
 //
 // Regras da análise estática dos mods: cada chamada escrita por extenso
 // ($.ns.metodo), nomes de evento como string literal, e funções que recebem $
@@ -35,7 +35,7 @@ const EXPLORER = 'explorer'
 const EXPLORER_HIDDEN = ['.git']
 const MAX_TREE_ROWS = 500
 const GAME = 'game'
-const GAME_IDS = ['tetris', 'snake', 'pacman', 'sokoban']
+const GAME_IDS = ['tetris', 'snake', 'pacman', 'sokoban', 'ricochete']
 const MONTHS = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
 const WEEK_HEADS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']
 
@@ -178,7 +178,7 @@ let expanded = new Set([''])
 let dirEntries = new Map() // pasta relativa -> [{ name, kind }] ou { error }
 
 // Fliperama: recordes (gravados no $.store) e o motivo, se o Client falhou.
-let gameHighs = { tetris: 0, snake: 0, pacman: 0, sokoban: 0 }
+let gameHighs = { tetris: 0, snake: 0, pacman: 0, sokoban: 0, ricochete: 0 }
 let gameFault = ''
 let gameFocused = false
 
@@ -215,7 +215,7 @@ export function register(on) {
     try {
       await $.command.register({
         name: 'game',
-        description: 'Abre ou fecha o fliperama: Tetris, Snake, Pac-Man e Sokoban (Right Panel)',
+        description: 'Abre ou fecha o fliperama: Tetris, Snake, Pac-Man, Sokoban e Ricochete (Right Panel)',
         immediate: true,
       })
     } catch {}

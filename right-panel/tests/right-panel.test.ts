@@ -536,13 +536,13 @@ test('recorde que o jogo manda é gravado e aparece no menu', async ($, on) => {
   const ui = await $.ui.mount({ ...GAME_PANE, surface: 'terminal' })
   expect(await ui.find({ type: 'Text', text: /Tetris\s+recorde 100/, ...IN_GAME })).toBeDefined()
   await ui.post({ type: 'score', game: 'snake', score: 70 }, IN_GAME)
-  expect(saved.get('gameHighs')).toEqual({ tetris: 100, snake: 70, pacman: 0, sokoban: 0 })
+  expect(saved.get('gameHighs')).toEqual({ tetris: 100, snake: 70, pacman: 0, sokoban: 0, ricochete: 0 })
   expect(await ui.find({ type: 'Text', text: /Snake\s+recorde 70/, ...IN_GAME })).toBeDefined()
 
   // Pontuação menor ou dado inválido não mexem no recorde.
   await ui.post({ type: 'score', game: 'snake', score: 10 }, IN_GAME)
   await ui.post({ type: 'score', game: 'xadrez', score: 999 }, IN_GAME)
-  expect(saved.get('gameHighs')).toEqual({ tetris: 100, snake: 70, pacman: 0, sokoban: 0 })
+  expect(saved.get('gameHighs')).toEqual({ tetris: 100, snake: 70, pacman: 0, sokoban: 0, ricochete: 0 })
 })
 
 test('Sokoban: empurra a caixa, passa de fase, reinicia e grava as fases feitas ao sair', async ($, on) => {
@@ -570,8 +570,63 @@ test('Sokoban: empurra a caixa, passa de fase, reinicia e grava as fases feitas 
 
   // Sair com fases feitas manda a pontuação para o recorde.
   await ui.key({ key: 'q', in: 'fliperama' })
-  expect(saved.get('gameHighs')).toEqual({ tetris: 0, snake: 0, pacman: 0, sokoban: 100 })
+  expect(saved.get('gameHighs')).toEqual({ tetris: 0, snake: 0, pacman: 0, sokoban: 100, ricochete: 0 })
   expect(await ui.find({ type: 'Text', text: /Sokoban\s+recorde 100/, ...IN_GAME })).toBeDefined()
+})
+
+// Ricochete: o campo começa na 3ª linha do Client e cada casa tem 2 colunas.
+const cellAt = (x: number, y: number) => ({ type: 'down', x: x * 2, y: y + 2, button: 'left', in: 'fliperama' }) as const
+
+test('Ricochete: 5 no menu abre a fase 1 com campo e bolinha', async ($, on) => {
+  stubSession(on, [])
+  await start($)
+
+  const ui = await $.ui.mount({ ...GAME_PANE, surface: 'terminal' })
+  await ui.key({ key: '5', in: 'fliperama' })
+  expect(await ui.find({ type: 'Text', text: /^Ricochete  pontos 0/, ...IN_GAME })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /fase 1\/10/, ...IN_GAME })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /●/, ...IN_GAME })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /clique põe e gira/, ...IN_GAME })).toBeDefined()
+})
+
+test('Ricochete: clique põe e gira o triângulo, o 5º tira; clique fora do campo não faz nada', async ($, on) => {
+  stubSession(on, [])
+  await start($)
+
+  const ui = await $.ui.mount({ ...GAME_PANE, surface: 'terminal' })
+  await ui.key({ key: '5', in: 'fliperama' })
+  await ui.key({ key: 'p', in: 'fliperama' }) // pausado, a bolinha não sai do lugar
+  await ui.key({ key: 'p', in: 'fliperama' })
+  // A bolinha é sorteada: se estiver na casa (1,1), o clique é ignorado e usa a (2,2).
+  let [x, y] = [1, 1]
+  await ui.pointer(cellAt(x, y))
+  if (!(await ui.find({ type: 'Text', text: /◺/, ...IN_GAME }))) {
+    ;[x, y] = [2, 2]
+    await ui.pointer(cellAt(x, y))
+  }
+  expect(await ui.find({ type: 'Text', text: /◺/, ...IN_GAME })).toBeDefined()
+  for (const shape of ['◸', '◹', '◿']) {
+    await ui.pointer(cellAt(x, y))
+    expect(await ui.find({ type: 'Text', text: new RegExp(shape), ...IN_GAME })).toBeDefined()
+  }
+  await ui.pointer(cellAt(x, y))
+  expect(await ui.find({ type: 'Text', text: /[◺◸◹◿]/, ...IN_GAME })).toBeUndefined()
+
+  await ui.pointer({ type: 'down', x: 2, y: 0, button: 'left', in: 'fliperama' })
+  await ui.pointer({ type: 'down', x: 40, y: 3, button: 'left', in: 'fliperama' })
+  expect(await ui.find({ type: 'Text', text: /[◺◸◹◿]/, ...IN_GAME })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: /^Ricochete/, ...IN_GAME })).toBeDefined()
+})
+
+test('Ricochete: recorde de fases é gravado e aparece no menu', async ($, on) => {
+  const saved = new Map<string, unknown>()
+  stubSession(on, [], saved)
+  await start($)
+
+  const ui = await $.ui.mount({ ...GAME_PANE, surface: 'terminal' })
+  await ui.post({ type: 'score', game: 'ricochete', score: 3 }, IN_GAME)
+  expect(saved.get('gameHighs')).toEqual({ tetris: 0, snake: 0, pacman: 0, sokoban: 0, ricochete: 3 })
+  expect(await ui.find({ type: 'Text', text: /Ricochete\s+recorde 3/, ...IN_GAME })).toBeDefined()
 })
 
 test('no VS Code, sem Client, o fliperama explica em vez de quebrar', async ($, on) => {
