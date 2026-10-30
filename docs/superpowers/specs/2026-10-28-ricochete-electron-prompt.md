@@ -30,11 +30,11 @@ perguntas que faltarem e proponha a estrutura do projeto.
 - O **buraco preto** é uma casa onde a bolinha cai. Cair nele perde a fase.
 - Não há vidas. Perder reinicia a mesma fase com o campo limpo, depois que o jogador aperta espaço
   (mensagens "CAIU NO BURACO" ou "TEMPO ESGOTADO").
-- Nas fases 9 e 10 há **cronômetro** regressivo; zerou, perdeu. Na fase 10, no máximo **6
-  triângulos** no campo ao mesmo tempo.
+- Algumas fases têm **cronômetro** regressivo (zerou, perdeu) e/ou um **limite de triângulos** no
+  campo ao mesmo tempo; os valores estão junto de cada mapa abaixo.
 - O início tem que ser justo: a casa e a direção sorteadas não podem levar a um buraco ou ao gol em
   menos de 4 casas, nem começar ao lado de um buraco.
-- Velocidade: 150 ms por casa nas fases 1–6, 120 ms nas 7–8 e 100 ms nas 9–10. Movimento suave
+- Velocidade: 150 ms por casa nas fases 1–6, 120 ms nas 7–8 e 100 ms da 9 em diante. Movimento suave
   entre casas no canvas é bem-vindo, mas a lógica continua casa a casa.
 - Não dá para clicar em parede, buraco, gol nem na casa onde a bolinha está.
 - Teclas: `R` reinicia a fase, `P` pausa, `Esc` volta ao menu, espaço segue depois de gol ou
@@ -49,11 +49,11 @@ perguntas que faltarem e proponha a estrutura do projeto.
 - Triângulos **vazados** (só o contorno), não cheios. A quina reta mostra para onde ele está virado.
 - O buraco é um **quadrado preto**, nunca redondo, para não parecer uma segunda bolinha.
 - O gol é só uma abertura na borda, sem traves.
-- No topo: nome do jogo, "fase N/10", cronômetro quando houver, triângulos usados/limite quando
+- No topo: nome do jogo, "fase N/20", cronômetro quando houver, triângulos usados/limite quando
   houver, recorde.
 - A janela se adapta ao tamanho, mantendo as casas quadradas.
 
-## As 10 fases
+## As 20 fases
 
 `#` parede · `G` gol · `O` buraco · `.` vazio. Cada mapa tem 18 colunas × 12 linhas, borda incluída.
 
@@ -204,6 +204,156 @@ G.....#..........#
 ####.....#####...#
 #........#.......#
 #........#...O...#
+#................#
+##################
+```
+11. Telhado
+```
+########G#########
+#................#
+#...##########...#
+#...#........#...#
+#...#........#...#
+#...#........#...#
+#................#
+#................#
+#................#
+#................#
+#................#
+##################
+```
+12. Ilhas
+```
+##################
+#................#
+#..##......##....#
+#..##......##....#
+#.......O........#
+#................#
+#....##.....##...G
+#....##.....##...#
+#.........O......#
+#................#
+#................#
+##################
+```
+13. Funil
+```
+##################
+#................#
+#................#
+##..............##
+#.#.....O......#.#
+#..#..........#..#
+#...#........#...#
+#....#......#....#
+#.....#....#.....#
+#......#..#......#
+#................#
+########G#########
+```
+14. Pente (60 s)
+```
+##################
+#................#
+#.#.#.#.#.#.#.#..#
+#.#.#.#.#.#.#.#..#
+#.#.#.#.#.#.#.#..#
+#.#.#.#.#.#.#.#..#
+#................#
+#................#
+#....O......O....#
+#................#
+#................G
+##################
+```
+15. Cofre (máx. 5 triângulos)
+```
+##################
+#................#
+#................#
+#................#
+######...........#
+#....#...........#
+G....#...........#
+#....#...........#
+#.####...........#
+#................#
+#..O.............#
+##################
+```
+16. Campo minado
+```
+#############G####
+#................#
+#..O.....O.......#
+#..............O.#
+#.....O..........#
+#...........O....#
+#..O.............#
+#........O.......#
+#..............O.#
+#....O...........#
+#..........O.....#
+##################
+```
+17. Serpente (60 s)
+```
+##################
+#................#
+#................#
+##############...#
+#................#
+#.......O........#
+#...##############
+#.....O..........#
+#................#
+##############...#
+G................#
+##################
+```
+18. Taça (50 s, máx. 5 triângulos)
+```
+##################
+#................#
+#..####....####..#
+#..#..........#..#
+#..#..O....O..#..#
+#................#
+#......####......#
+#......#..#......#
+#...O..#..#..O...#
+#................#
+#......O.O.......#
+########G#########
+```
+19. Muralha (45 s, máx. 5 triângulos)
+```
+##################
+#.......#........#
+#.......#........G
+#.......#...O....#
+#.......#........#
+#..O....#........#
+#.......#######..#
+#.......#........#
+#.......#O.......#
+#................#
+#.......#O.......#
+##################
+```
+20. Grande final (40 s, máx. 4 triângulos)
+```
+##G###############
+#..#.............#
+#..#..O......O...#
+#..#.............#
+#..#....######...#
+#..#....#....#...#
+#..#....#.O..#...#
+#..#.............#
+#..#........O....#
+#...O............#
 #................#
 ##################
 ```

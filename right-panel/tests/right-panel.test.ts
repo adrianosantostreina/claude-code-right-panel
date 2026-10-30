@@ -584,7 +584,7 @@ test('Ricochete: 5 no menu abre a fase 1 com campo e bolinha', async ($, on) => 
   const ui = await $.ui.mount({ ...GAME_PANE, surface: 'terminal' })
   await ui.key({ key: '5', in: 'fliperama' })
   expect(await ui.find({ type: 'Text', text: /^Ricochete  pontos 0/, ...IN_GAME })).toBeDefined()
-  expect(await ui.find({ type: 'Text', text: /fase 1\/10/, ...IN_GAME })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /fase 1\/20/, ...IN_GAME })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /●/, ...IN_GAME })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /clique põe e gira/, ...IN_GAME })).toBeDefined()
 })

@@ -28,8 +28,8 @@ function place(g, x: number, y: number, dir: string) {
 
 const tri = (g, x: number, y: number) => g.tris[y][x]
 
-test('fases: 10 mapas 18×12, um gol na borda cada', () => {
-  expect(RICOCHETE_LEVELS.length).toBe(10)
+test('fases: 20 mapas 18×12, um gol na borda cada', () => {
+  expect(RICOCHETE_LEVELS.length).toBe(20)
   for (const level of RICOCHETE_LEVELS) {
     expect(level.map.length).toBe(12)
     let goals = 0
@@ -46,7 +46,30 @@ test('fases: 10 mapas 18×12, um gol na borda cada', () => {
   expect(RICOCHETE_LEVELS[8].time).toBe(60)
   expect(RICOCHETE_LEVELS[9].time).toBe(45)
   expect(RICOCHETE_LEVELS[9].limit).toBe(6)
-  expect([speedOf(0), speedOf(5), speedOf(6), speedOf(7), speedOf(8), speedOf(9)]).toEqual([150, 150, 120, 120, 100, 100])
+  expect(RICOCHETE_LEVELS.slice(10).map((l) => [l.time ?? 0, l.limit ?? 0])).toEqual([
+    [0, 0], [0, 0], [0, 0], [60, 0], [0, 5], [0, 0], [60, 0], [50, 5], [45, 5], [40, 4],
+  ])
+  expect([speedOf(0), speedOf(5), speedOf(6), speedOf(7), speedOf(8), speedOf(9), speedOf(19)]).toEqual([150, 150, 120, 120, 100, 100, 100])
+})
+
+test('fases: de qualquer casa vazia há caminho até o gol sem passar por buraco', () => {
+  for (const { name, map } of RICOCHETE_LEVELS) {
+    const gy = map.findIndex((row) => row.includes('G'))
+    const seen = new Set([`${map[gy].indexOf('G')},${gy}`])
+    const queue = [[map[gy].indexOf('G'), gy]]
+    while (queue.length) {
+      const [x, y] = queue.shift()
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const key = `${x + dx},${y + dy}`
+        if ((map[y + dy] || '')[x + dx] !== '.' || seen.has(key)) continue
+        seen.add(key)
+        queue.push([x + dx, y + dy])
+      }
+    }
+    const cut = []
+    map.forEach((row, y) => [...row].forEach((c, x) => c === '.' && !seen.has(`${x},${y}`) && cut.push(`${x},${y}`)))
+    expect(`${name}: ${cut.join(' ')}`).toBe(`${name}: `)
+  }
 })
 
 test('desvio: lados abertos viram 90°, fechados devolvem null', () => {
@@ -200,7 +223,7 @@ test('início justo: 4 passos sem triângulo não caem em buraco nem no gol, e n
   }
 })
 
-test('r reinicia a fase; depois da 10ª o gol vira won/over', () => {
+test('r reinicia a fase; a 10ª passa para a 11ª e depois da 20ª o gol vira won/over', () => {
   const g = game(9)
   g.tris[5][5] = 0
   expect(ricocheteKey(g, 'r')).toBe(true)
@@ -208,6 +231,16 @@ test('r reinicia a fase; depois da 10ª o gol vira won/over', () => {
   expect(g.level).toBe(9)
 
   place(g, 1, 1, 'left') // fase 10: gol na esquerda, linha 1
+  ricocheteStep(g)
+  expect(g.cleared).toBe(true)
+  expect(g.won).toBe(false)
+  ricocheteKey(g, 'space')
+  expect(g.level).toBe(10)
+
+  g.level = 19
+  loadRicochete(g, fixed)
+  g.score = 0
+  place(g, 2, 1, 'up') // fase 20: gol em cima, coluna 2
   ricocheteStep(g)
   expect(g.won).toBe(true)
   expect(g.over).toBe(true)

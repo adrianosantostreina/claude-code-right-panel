@@ -16,11 +16,11 @@ campo compacto, triângulo vazado, buraco preto.
 - Ser o 5º jogo do `/game`, ao lado de Tetris, Snake, Pac-Man e Sokoban, com o mesmo jeito de
   menu, pausa, recorde e ajuda.
 - Jogar com o mouse: clique põe e gira triângulos.
-- 10 fases que vão ficando difíceis (paredes, buracos, cronômetro, limite de triângulos).
+- 20 fases que vão ficando difíceis (paredes, buracos, cronômetro, limite de triângulos).
 
 ## Fora do escopo
 
-- Fases geradas automaticamente, editor de fases, mais de 10 fases nesta versão.
+- Fases geradas automaticamente, editor de fases, mais de 20 fases nesta versão.
 - Rodar no VS Code: lá não existe Client e o fliperama já mostra a mensagem de que só roda no
   terminal/desktop. Nada muda nisso.
 - A versão Electron é outro projeto, em outra sessão (ver `2026-10-28-ricochete-electron-prompt.md`).
@@ -49,8 +49,8 @@ campo compacto, triângulo vazado, buraco preto.
 - **Gol:** uma abertura de uma casa na borda. A bolinha que entra nela marca o gol e a fase acaba.
 - **Buraco preto:** a bolinha que entra nele cai e o jogador perde a fase.
 - **Perder:** não há vidas. Perder (buraco ou tempo esgotado) reinicia a mesma fase.
-- **Cronômetro:** nas fases 9 e 10, contagem regressiva; zerou, perdeu.
-- **Limite de triângulos:** na fase 10, no máximo 6 no campo ao mesmo tempo.
+- **Cronômetro:** nas fases 9, 10, 14, 17, 18, 19 e 20, contagem regressiva; zerou, perdeu.
+- **Limite de triângulos:** máximo de triângulos no campo ao mesmo tempo: 6 na fase 10, 5 nas 15, 18 e 19, 4 na 20.
 - **Recorde:** quantas fases o jogador passou, gravado como o do Sokoban.
 
 ## Desenho (aprovado no protótipo)
@@ -63,7 +63,7 @@ campo compacto, triângulo vazado, buraco preto.
 - Bolinha: `●` rosa. É a única coisa redonda na tela.
 - Buraco: quadrado preto (`██` em preto). Não pode ser redondo, para não parecer uma segunda bolinha.
 - Gol: abertura na borda (casa vazia no meio da parede), sem traves.
-- Cabeçalho no padrão do fliperama: nome, fase N/10, cronômetro quando houver, triângulos usados
+- Cabeçalho no padrão do fliperama: nome, fase N/20, cronômetro quando houver, triângulos usados
   / limite quando houver, recorde.
 
 ## As 10 fases (aprovadas)
@@ -221,6 +221,164 @@ G.....#..........#
 ##################
 ```
 
+## Fases 11 a 20 (2026-10-29)
+
+Pedidas depois do jogo pronto. Usam só as peças que já existem; a dificuldade vem de corredores
+mais estreitos, buracos de guarda na frente do caminho e relógio com limite juntos no fim. Velocidade
+de 100 ms por casa, como nas 9–10. Um teste confere que de qualquer casa vazia há caminho até o gol
+sem passar por buraco.
+
+11. Telhado
+```
+########G#########
+#................#
+#...##########...#
+#...#........#...#
+#...#........#...#
+#...#........#...#
+#................#
+#................#
+#................#
+#................#
+#................#
+##################
+```
+12. Ilhas
+```
+##################
+#................#
+#..##......##....#
+#..##......##....#
+#.......O........#
+#................#
+#....##.....##...G
+#....##.....##...#
+#.........O......#
+#................#
+#................#
+##################
+```
+13. Funil
+```
+##################
+#................#
+#................#
+##..............##
+#.#.....O......#.#
+#..#..........#..#
+#...#........#...#
+#....#......#....#
+#.....#....#.....#
+#......#..#......#
+#................#
+########G#########
+```
+14. Pente (60 s)
+```
+##################
+#................#
+#.#.#.#.#.#.#.#..#
+#.#.#.#.#.#.#.#..#
+#.#.#.#.#.#.#.#..#
+#.#.#.#.#.#.#.#..#
+#................#
+#................#
+#....O......O....#
+#................#
+#................G
+##################
+```
+15. Cofre (máx. 5 triângulos)
+```
+##################
+#................#
+#................#
+#................#
+######...........#
+#....#...........#
+G....#...........#
+#....#...........#
+#.####...........#
+#................#
+#..O.............#
+##################
+```
+16. Campo minado
+```
+#############G####
+#................#
+#..O.....O.......#
+#..............O.#
+#.....O..........#
+#...........O....#
+#..O.............#
+#........O.......#
+#..............O.#
+#....O...........#
+#..........O.....#
+##################
+```
+17. Serpente (60 s)
+```
+##################
+#................#
+#................#
+##############...#
+#................#
+#.......O........#
+#...##############
+#.....O..........#
+#................#
+##############...#
+G................#
+##################
+```
+18. Taça (50 s, máx. 5 triângulos)
+```
+##################
+#................#
+#..####....####..#
+#..#..........#..#
+#..#..O....O..#..#
+#................#
+#......####......#
+#......#..#......#
+#...O..#..#..O...#
+#................#
+#......O.O.......#
+########G#########
+```
+19. Muralha (45 s, máx. 5 triângulos)
+```
+##################
+#.......#........#
+#.......#........G
+#.......#...O....#
+#.......#........#
+#..O....#........#
+#.......#######..#
+#.......#........#
+#.......#O.......#
+#................#
+#.......#O.......#
+##################
+```
+20. Grande final (40 s, máx. 4 triângulos)
+```
+##G###############
+#..#.............#
+#..#..O......O...#
+#..#.............#
+#..#....######...#
+#..#....#....#...#
+#..#....#.O..#...#
+#..#.............#
+#..#........O....#
+#...O............#
+#................#
+##################
+```
+
 ## Onde entra no código
 
 - `right-panel/hooks/games.js`: nova entrada em `GAMES` e em `RULES` (`create`, `tick`, `key`,
@@ -245,7 +403,7 @@ G.....#..........#
 - **Ao perder:** a fase recomeça com o campo limpo (sem os triângulos), bolinha e direção novas, e o
   cronômetro cheio. O recomeço espera o espaço, com a mensagem "CAIU NO BURACO" ou "TEMPO
   ESGOTADO", para o jogador não perder de novo sem ver.
-- **Ao fazer gol:** "GOL!" e o espaço passa à fase seguinte. Depois da 10ª: "TODAS AS FASES!".
+- **Ao fazer gol:** "GOL!" e o espaço passa à fase seguinte. Depois da 20ª: "TODAS AS FASES!".
 - **Limite atingido:** clique em casa vazia não põe triângulo, e o contador no cabeçalho fica
   vermelho. Girar e remover continuam valendo.
 - **Teclas:** `r` reinicia a fase, `p` pausa, `q` volta ao menu, espaço segue depois de gol ou
